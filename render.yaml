@@ -1,0 +1,55 @@
+# Render Blueprint — FintelliAI backend (free tier)
+# Dashboard: New → Blueprint → connect this repo, or create services manually using DEPLOY.md
+#
+# Creates: 1 Postgres (free) + 1 Python web service (Django/Daphne)
+# Frontend deploys separately on Vercel (see DEPLOY.md).
+
+databases:
+  - name: fintelli-db
+    plan: free
+    databaseName: fintelli
+    user: fintelli
+
+services:
+  - type: web
+    name: fintelli-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: bash build.sh
+    startCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
+    healthCheckPath: /api/fetch-news/?providers=newsapi
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fintelli-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "true"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: CORS_EXTRA_ORIGINS
+        sync: false
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: FEATURE_GENAI_INSIGHTS
+        value: "true"
+      - key: FEATURE_AGENTS
+        value: "true"
+      - key: FEATURE_QUANT_SIGNALS
+        value: "true"
+      - key: FEATURE_WEBSOCKETS
+        value: "true"
+      # Optional on free tier (no Redis service):
+      # - key: REDIS_URL
+      #   sync: false

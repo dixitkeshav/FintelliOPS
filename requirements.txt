@@ -1,0 +1,52 @@
+# Core
+django>=4.2,<5.2
+djangorestframework>=3.14
+django-cors-headers>=4.3
+python-dotenv>=1.0
+dj-database-url>=2.1
+psycopg2-binary>=2.9
+whitenoise>=6.6
+requests>=2.31
+newsapi-python>=0.2.7
+feedparser>=6.0.10
+python-telegram-bot>=21.3
+ta>=0.11.0
+
+# NLP & ML
+transformers>=4.35
+torch>=2.0
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+nltk>=3.8
+
+# GenAI
+openai>=1.6
+tiktoken>=0.5
+langchain>=0.1.0
+langchain-openai>=0.0.5
+
+# Microsoft Foundry (optional — local fallback when unset)
+azure-ai-projects>=1.0.0
+azure-identity>=1.15.0
+
+# Async & Queues
+celery[redis]>=5.3
+redis>=5.0
+django-celery-beat>=2.5
+django-redis>=5.4
+
+# Real-time
+channels>=4.0
+channels-redis>=4.2
+daphne>=4.0
+
+# Quant & Backtesting
+backtrader>=1.9.78
+yfinance>=0.2.33
+scipy>=1.11
+
+# Utils
+structlog>=24.1
+pyyaml>=6.0
+beautifulsoup4>=4.12

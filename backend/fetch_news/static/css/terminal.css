@@ -1,0 +1,252 @@
+/* Trading View / News channel terminal style */
+
+:root {
+  --bg-dark: #0d1117;
+  --bg-card: #161b22;
+  --bg-elevated: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --green: #3fb950;
+  --red: #f85149;
+  --amber: #d29922;
+  --accent: #58a6ff;
+  --font-mono: "JetBrains Mono", "SF Mono", "Consolas", monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-dark);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ----- Top ticker strip (indices / prices) ----- */
+.ticker-strip {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.ticker-strip-inner {
+  display: inline-flex;
+  gap: 24px;
+  animation: scroll-left 60s linear infinite;
+  padding-right: 100%;
+}
+
+.ticker-strip-inner:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scroll-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.ticker-item .sym { font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
+.ticker-item .name { color: var(--text-muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.ticker-item .price { font-family: var(--font-mono); font-weight: 600; }
+.ticker-item .ch { font-family: var(--font-mono); font-size: 12px; }
+.ticker-item .ch.positive { color: var(--green); }
+.ticker-item .ch.negative { color: var(--red); }
+
+/* ----- News ticker (headlines scroll) ----- */
+.news-ticker-wrap {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 0;
+  overflow: hidden;
+}
+
+.news-ticker {
+  display: inline-flex;
+  gap: 32px;
+  animation: scroll-news 90s linear infinite;
+  white-space: nowrap;
+}
+
+.news-ticker:hover { animation-play-state: paused; }
+
+@keyframes scroll-news {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.news-ticker span {
+  color: var(--text-muted);
+}
+.news-ticker span.sentiment-positive { color: var(--green); }
+.news-ticker span.sentiment-negative { color: var(--red); }
+
+/* ----- Header ----- */
+.terminal-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.terminal-header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.terminal-header .badge {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+/* ----- Main grid ----- */
+.terminal-main {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+
+.terminal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.terminal-card.full { grid-column: 1 / -1; }
+.terminal-card.half { grid-column: span 6; }
+.terminal-card.third { grid-column: span 4; }
+@media (max-width: 900px) {
+  .terminal-card.half { grid-column: 1 / -1; }
+  .terminal-card.third { grid-column: 1 / -1; }
+}
+
+.terminal-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.terminal-card-body {
+  padding: 16px;
+  min-height: 80px;
+}
+
+/* ----- News feed list ----- */
+.news-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.news-feed-list li {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.news-feed-list li:last-child { border-bottom: none; }
+.news-feed-list li:hover { background: var(--bg-elevated); }
+
+.news-feed-list .news-title { font-weight: 500; color: var(--text); }
+.news-feed-list .news-title a { color: var(--accent); text-decoration: none; }
+.news-feed-list .news-title a:hover { text-decoration: underline; }
+.news-feed-list .sentiment { font-size: 11px; margin-left: 8px; }
+.news-feed-list .sentiment.positive { color: var(--green); }
+.news-feed-list .sentiment.negative { color: var(--red); }
+.news-feed-list .sentiment.neutral { color: var(--amber); }
+
+/* ----- Buttons ----- */
+.btn-terminal {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-terminal:hover {
+  background: var(--border);
+  border-color: var(--text-muted);
+}
+.btn-terminal.primary {
+  background: var(--accent);
+  color: var(--bg-dark);
+  border-color: var(--accent);
+}
+.btn-terminal.primary:hover { filter: brightness(1.1); }
+
+/* ----- Forms ----- */
+.input-terminal {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 100%;
+  max-width: 280px;
+}
+.input-terminal::placeholder { color: var(--text-muted); }
+.input-terminal:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ----- Symbol deep-dive block ----- */
+.deep-dive-result {
+  background: var(--bg-dark);
+  border-radius: 6px;
+  padding: 14px;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+}
+.deep-dive-result .prediction { color: var(--text); margin: 8px 0; line-height: 1.6; }
+.deep-dive-result .similar-stocks { color: var(--accent); font-size: 12px; margin-top: 8px; }
+.deep-dive-result .price { font-family: var(--font-mono); font-weight: 600; color: var(--green); }
+
+/* ----- Agent result ----- */
+.agent-reco { color: var(--text); padding: 12px; background: var(--bg-dark); border-radius: 6px; border-left: 4px solid var(--accent); }
+
+/* ----- Charts ----- */
+.chart-wrap { height: 220px; position: relative; }
+
+/* ----- Status ----- */
+.ws-status.connected { color: var(--green); }
+.ws-status.disconnected { color: var(--text-muted); }
