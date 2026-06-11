@@ -1,0 +1,68 @@
+{
+  "certifications": [
+    {
+      "id": "AZ-204",
+      "name": "Azure Developer Associate",
+      "skills": ["API Development", "Azure Functions", "Storage", "App Services"],
+      "recommended_hours": 20,
+      "pass_threshold": 75,
+      "prerequisites": []
+    },
+    {
+      "id": "AZ-400",
+      "name": "Azure DevOps Engineer Expert",
+      "skills": ["CI/CD", "Monitoring", "GitHub Actions", "Infrastructure as Code"],
+      "recommended_hours": 25,
+      "pass_threshold": 75,
+      "prerequisites": ["AZ-104"]
+    },
+    {
+      "id": "DP-203",
+      "name": "Azure Data Engineer Associate",
+      "skills": ["Data Pipelines", "Synapse", "Data Lake", "Databricks"],
+      "recommended_hours": 22,
+      "pass_threshold": 75,
+      "prerequisites": []
+    },
+    {
+      "id": "AZ-500",
+      "name": "Azure Security Engineer Associate",
+      "skills": ["Identity", "Network Security", "Governance", "Threat Protection"],
+      "recommended_hours": 24,
+      "pass_threshold": 75,
+      "prerequisites": []
+    }
+  ],
+  "roles": [
+    {
+      "id": "cloud-engineer",
+      "name": "Cloud Engineer",
+      "primary_certification": "AZ-204",
+      "secondary_certification": "AZ-305"
+    },
+    {
+      "id": "devops-engineer",
+      "name": "DevOps Engineer",
+      "primary_certification": "AZ-400",
+      "secondary_certification": null
+    },
+    {
+      "id": "data-engineer",
+      "name": "Data Engineer",
+      "primary_certification": "DP-203",
+      "secondary_certification": null
+    },
+    {
+      "id": "security-engineer",
+      "name": "Security Engineer",
+      "primary_certification": "AZ-500",
+      "secondary_certification": null
+    }
+  ],
+  "rules": {
+    "min_study_hours_for_readiness": 20,
+    "min_practice_score_for_readiness": 75,
+    "optimal_meeting_hours_max": 18,
+    "optimal_focus_hours_min": 15
+  }
+}

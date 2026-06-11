@@ -1,0 +1,31 @@
+# Microsoft Foundry Hosted Agent manifest (template)
+# Adapt resource names and image URI for your Azure subscription.
+
+name: enterprise-learning-orchestrator
+description: >
+  Multi-agent enterprise learning certification system.
+  Orchestrates Learning Path Curator, Study Plan Generator,
+  Engagement, Assessment, and Manager Insights agents.
+
+runtime: container
+image: <your-acr>.azurecr.io/learning-orchestrator:v1
+
+identity:
+  type: system_assigned
+
+environment:
+  AZURE_AI_MODEL_DEPLOYMENT: gpt-4o
+  # Secrets via Key Vault / managed identity — never commit values
+
+capabilities:
+  - foundry_iq
+  - fabric_iq
+  - work_iq
+
+endpoints:
+  health: /health
+  run: /run
+
+resources:
+  cpu: "0.5"
+  memory: "1Gi"
