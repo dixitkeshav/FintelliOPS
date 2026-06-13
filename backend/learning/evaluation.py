@@ -1,58 +1,52 @@
-"""
-Lightweight evaluation harness for the learning certification agents.
-
-Run: PYTHONPATH=backend python3 -m learning.evaluation
-"""
+"""Pipeline evaluation metrics for learning agents."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import re
+from typing import Any
 
-from learning.agents.orchestrator import LearningOrchestrator
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
+EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 
-def run_evaluations() -> dict:
-    with open(DATA_DIR / "learner_performance.json", encoding="utf-8") as f:
-        learners = json.load(f)
+def evaluate_pipeline(context: dict[str, Any]) -> dict[str, Any]:
+    agents = context.get("agents", {})
+    total_agents = len(agents) or 1
+    topics = [t.lower() for t in context.get("topics", [])]
 
-    orchestrator = LearningOrchestrator()
-    results = []
-    passed_checks = 0
-    total_checks = 0
+    agents_with_citations = sum(
+        1 for r in agents.values() if len(r.get("citations", [])) > 0
+    )
+    groundedness_score = agents_with_citations / total_agents
 
-    for learner in learners:
-        out = orchestrator.run(
-            learner_id=learner["learner_id"],
-            team="TEAM-A" if learner["learner_id"] in ("L-1001", "L-1002") else "TEAM-B",
-        )
-        checks = {
-            "has_pipeline": len(out.get("pipeline", [])) >= 6,
-            "has_citations": bool(
-                out.get("learning_path_curator", {}).get("learning_path", {}).get("citations")
-            ),
-            "has_assessment": bool(out.get("assessment_agent", {}).get("assessment", {}).get("questions")),
-            "has_manager_insights": bool(out.get("manager_insights", {}).get("manager_insights")),
-            "iq_layers_active": all(out.get("iq_layers", {}).values()),
-        }
-        score = sum(checks.values()) / len(checks)
-        passed_checks += sum(checks.values())
-        total_checks += len(checks)
-        results.append({
-            "learner_id": learner["learner_id"],
-            "checks": checks,
-            "score": round(score * 100),
-            "exam_ready": out.get("exam_ready"),
-        })
+    agents_mentioning_topics = 0
+    for result in agents.values():
+        output = (result.get("output") or "").lower()
+        if any(topic in output for topic in topics):
+            agents_mentioning_topics += 1
+    relevance_score = agents_mentioning_topics / total_agents
+
+    completed_agents = sum(1 for r in agents.values() if r.get("completed"))
+    completion_score = completed_agents / total_agents
+
+    safety_flags: list[str] = []
+    for name, result in agents.items():
+        output = result.get("output") or ""
+        if EMAIL_PATTERN.search(output):
+            safety_flags.append("potential_pii")
+        if len(output) > 3000:
+            safety_flags.append("output_too_long")
+        if not output.strip():
+            safety_flags.append(f"empty_output:{name}")
+
+    overall_score = round(
+        (groundedness_score * 40) + (relevance_score * 30) + (completion_score * 30),
+        1,
+    )
 
     return {
-        "learner_count": len(results),
-        "aggregate_pass_rate": round(passed_checks / max(total_checks, 1) * 100, 1),
-        "results": results,
+        "groundedness_score": round(groundedness_score, 3),
+        "relevance_score": round(relevance_score, 3),
+        "completion_score": round(completion_score, 3),
+        "overall_score": overall_score,
+        "safety_flags": list(dict.fromkeys(safety_flags)),
+        "passed": overall_score >= 70,
     }
-
-
-if __name__ == "__main__":
-    report = run_evaluations()
-    print(json.dumps(report, indent=2))

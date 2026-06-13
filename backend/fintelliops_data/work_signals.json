@@ -1,0 +1,28 @@
+{
+  "analysts": [
+    {
+      "analyst_id": "ANL-001",
+      "name": "Analyst Alpha",
+      "meeting_hours_per_week": 18,
+      "focus_hours_per_week": 22,
+      "preferred_briefing_slot": "08:00",
+      "timezone": "Asia/Kolkata",
+      "active_coverage": ["SECT-001", "SECT-002"]
+    },
+    {
+      "analyst_id": "ANL-002",
+      "name": "Analyst Beta",
+      "meeting_hours_per_week": 28,
+      "focus_hours_per_week": 12,
+      "preferred_briefing_slot": "07:00",
+      "timezone": "America/New_York",
+      "active_coverage": ["SECT-003"]
+    }
+  ],
+  "team_capacity": {
+    "total_analysts": 2,
+    "avg_focus_hours": 17,
+    "peak_analysis_window": "06:00-10:00 IST",
+    "current_load": "medium"
+  }
+}

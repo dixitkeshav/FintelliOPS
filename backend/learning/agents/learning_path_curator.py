@@ -3,69 +3,69 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents.base import BaseAgent
-from learning.iq.foundry_iq import FoundryIQ
-from learning.iq.fabric_iq import FabricIQ
-from learning.foundry_client import enrich_with_llm
+from django.conf import settings
+
+from learning.foundry_client import FoundryClient
+from learning.iq.fabric_iq import FabricIQClient
+from learning.iq.foundry_iq import FoundryIQClient
+from learning.iq.work_iq import WorkIQClient
 from learning.mcp_learn import augment_with_learn
 
 
-class LearningPathCuratorAgent(BaseAgent):
-    """Suggests relevant learning paths using Foundry IQ and Fabric IQ semantics."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            name="LearningPathCurator",
-            role="Map certification targets to cited skills and resources",
-        )
-        self.foundry_iq = FoundryIQ()
-        self.fabric_iq = FabricIQ()
+class LearningPathCuratorAgent:
+    def __init__(
+        self,
+        foundry_client: FoundryClient,
+        foundry_iq: FoundryIQClient,
+        fabric_iq: FabricIQClient,
+        work_iq: WorkIQClient,
+    ) -> None:
+        self.foundry_client = foundry_client
+        self.foundry_iq = foundry_iq
+        self.fabric_iq = fabric_iq
+        self.work_iq = work_iq
 
     def run(self, context: dict[str, Any]) -> dict[str, Any]:
-        learner_id = context.get("learner_id", "L-1001")
+        learner = context["learner"]
+        role = context["role"]
         topics = context.get("topics", [])
-        learner = self.fabric_iq.get_learner(learner_id)
-        certification = context.get("certification") or (learner or {}).get("certification", "AZ-204")
-        role = (learner or {}).get("role", "Cloud Engineer")
+        cert_id = context["certification"]
+        learner_id = context["learner_id"]
 
-        role_map = self.fabric_iq.get_role_mapping(role)
-        cert_meta = self.fabric_iq.get_certification(certification)
-        query = f"{certification} {role} {' '.join(topics)} certification study path"
-        grounded = self.foundry_iq.grounded_answer(query)
-        mcp_augmented = augment_with_learn(query, grounded.get("sources", []))
+        query = f"{role} certification learning path {' '.join(topics)}"
+        citations = self.foundry_iq.retrieve(query)
+        if getattr(settings, "MCP_LEARN_ENABLED", False):
+            augment_with_learn(query, citations)
 
-        learning_path = {
-            "certification": certification,
-            "role": role,
-            "primary_skills": (cert_meta or {}).get("skills", []),
-            "secondary_certification": (role_map or {}).get("secondary_certification"),
-            "recommended_hours": (cert_meta or {}).get("recommended_hours", 20),
-            "cited_resources": grounded.get("sources", []),
-            "citations": grounded.get("citations", []),
-            "mcp_learn": mcp_augmented,
-        }
+        cert_info = self.fabric_iq.get_certification_for_role(role)
+        skill_gaps = self.fabric_iq.get_skill_gaps(learner_id, cert_id)
 
-        llm_summary = enrich_with_llm(
-            system_prompt=(
-                "You are a Learning Path Curator for enterprise certification programmes. "
-                "Summarise the learning path in 2-3 sentences. Always mention that recommendations "
-                "are grounded in approved organisational knowledge with citations."
-            ),
-            user_prompt=(
-                f"Learner {learner_id} ({role}) targeting {certification}. "
-                f"Topics: {topics}. Grounded context: {grounded.get('answer', '')[:500]}"
-            ),
-            fallback=(
-                f"Curated path for {certification} aligned to {role} role. "
-                f"Focus on {(cert_meta or {}).get('skills', ['core skills'])[:3]}. "
-                f"Grounded in {len(grounded.get('citations', []))} approved sources."
-            ),
+        docs_text = "\n\n".join(
+            f"[{c['citation']}] {c['content'][:400]}" for c in citations
+        )
+        system_prompt = (
+            "You are a Learning Path Curator. Based ONLY on the retrieved knowledge documents "
+            "below, suggest a learning path. You MUST cite document sources for every "
+            "recommendation. Never suggest content not in the documents."
+        )
+        user_prompt = (
+            f"Learner role: {role}\n"
+            f"Target certification: {cert_id}\n"
+            f"Topics: {', '.join(topics)}\n"
+            f"Skill gaps: {', '.join(skill_gaps) or 'none'}\n"
+            f"Certification requirements: {cert_info}\n\n"
+            f"Retrieved documents:\n{docs_text}"
         )
 
-        self._remember({"learner_id": learner_id, "path": learning_path})
+        output = self.foundry_client.chat(system_prompt, user_prompt)
+
         return {
-            "learning_path": learning_path,
-            "grounded": grounded.get("grounded", False),
-            "iq_layers": ["Foundry IQ", "Fabric IQ"],
-            "summary": llm_summary,
+            "agent_name": "LearningPathCuratorAgent",
+            "output": output,
+            "iq_layers_used": ["foundry_iq", "fabric_iq"],
+            "citations": citations,
+            "fabric_entities": [cert_info.get("cert_id", cert_id)] + skill_gaps,
+            "work_signals": {},
+            "completed": True,
+            "error": None,
         }

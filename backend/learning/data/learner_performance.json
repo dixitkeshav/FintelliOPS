@@ -2,7 +2,9 @@
   {
     "learner_id": "L-1001",
     "role": "Cloud Engineer",
+    "team_id": "TEAM-A",
     "certification": "AZ-204",
+    "skills": ["API Development", "Storage"],
     "practice_score_avg": 67,
     "hours_studied": 18,
     "exam_outcome": "Fail"
@@ -10,7 +12,9 @@
   {
     "learner_id": "L-1002",
     "role": "DevOps Engineer",
+    "team_id": "TEAM-A",
     "certification": "AZ-400",
+    "skills": ["CI/CD", "Monitoring", "GitHub Actions"],
     "practice_score_avg": 82,
     "hours_studied": 24,
     "exam_outcome": "Pass"
@@ -18,7 +22,9 @@
   {
     "learner_id": "L-1003",
     "role": "Data Engineer",
+    "team_id": "TEAM-B",
     "certification": "DP-203",
+    "skills": ["Data Pipelines", "Data Lake"],
     "practice_score_avg": 74,
     "hours_studied": 20,
     "exam_outcome": "Pass"
@@ -26,7 +32,9 @@
   {
     "learner_id": "L-1004",
     "role": "Cloud Engineer",
+    "team_id": "TEAM-B",
     "certification": "AZ-204",
+    "skills": ["App Services"],
     "practice_score_avg": 58,
     "hours_studied": 12,
     "exam_outcome": "Fail"
@@ -34,7 +42,9 @@
   {
     "learner_id": "L-1005",
     "role": "Security Engineer",
+    "team_id": "TEAM-C",
     "certification": "AZ-500",
+    "skills": ["Identity", "Network Security", "Governance"],
     "practice_score_avg": 79,
     "hours_studied": 22,
     "exam_outcome": "Pass"

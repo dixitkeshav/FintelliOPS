@@ -1,8 +1,10 @@
 """
-Fabric IQ — semantic business layer (synthetic ontology demo).
+Fabric IQ — Semantic business understanding layer.
 
-In production, this would use Microsoft Fabric IQ ontology to model
-employees, roles, certifications, skill gaps, and readiness thresholds.
+DEMO: networkx knowledge graph over fabric_semantic_model.json.
+PRODUCTION: Microsoft Fabric REST APIs with ontology-driven
+entity resolution, skill gap analysis, and semantic search
+over unified business entities.
 """
 from __future__ import annotations
 
@@ -11,133 +13,156 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import networkx as nx
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
-class FabricIQ:
-    """Semantic layer for certification, role, skill gap, and readiness reasoning."""
+class FabricIQClient:
+    """Semantic layer over certification ontology and learner performance."""
 
     def __init__(self) -> None:
-        with open(DATA_DIR / "fabric_semantic_model.json", encoding="utf-8") as f:
-            self._model = json.load(f)
-        with open(DATA_DIR / "learner_performance.json", encoding="utf-8") as f:
-            self._learners = json.load(f)
+        model_path = DATA_DIR / "fabric_semantic_model.json"
+        learner_path = DATA_DIR / "learner_performance.json"
+        self.model = json.loads(model_path.read_text(encoding="utf-8"))
+        self.learners = json.loads(learner_path.read_text(encoding="utf-8"))
+        self.learners_by_id = {l["learner_id"]: l for l in self.learners}
+        self.graph = self._build_graph()
 
-    def get_certification(self, cert_id: str) -> dict[str, Any] | None:
-        for cert in self._model.get("certifications", []):
-            if cert["id"] == cert_id:
-                return cert
-        return None
+    def _build_graph(self) -> nx.DiGraph:
+        graph = nx.DiGraph()
+        cert_by_id = {c["id"]: c for c in self.model.get("certifications", [])}
 
-    def get_role_mapping(self, role_name: str) -> dict[str, Any] | None:
-        for role in self._model.get("roles", []):
-            if role["name"].lower() == role_name.lower():
-                return role
-        return None
+        for cert in self.model.get("certifications", []):
+            graph.add_node(f"cert:{cert['id']}", type="certification", **cert)
 
-    def get_learner(self, learner_id: str) -> dict[str, Any] | None:
-        for learner in self._learners:
-            if learner["learner_id"] == learner_id:
-                return dict(learner)
-        return None
+        for role in self.model.get("roles", []):
+            graph.add_node(f"role:{role['name']}", type="role", **role)
+            primary = role.get("primary_certification")
+            if primary and primary in cert_by_id:
+                graph.add_edge(
+                    f"role:{role['name']}",
+                    f"cert:{primary}",
+                    relation="requires",
+                )
 
-    def compute_skill_gaps(self, learner_id: str) -> dict[str, Any]:
-        learner = self.get_learner(learner_id)
-        if not learner:
-            return {"gaps": [], "readiness_score": 0}
+        for cert in self.model.get("certifications", []):
+            for skill in cert.get("skills", []):
+                graph.add_node(f"skill:{skill}", type="skill", name=skill)
+                graph.add_edge(f"cert:{cert['id']}", f"skill:{skill}", relation="tests")
 
-        cert = self.get_certification(learner["certification"])
-        if not cert:
-            return {"gaps": ["Unknown certification"], "readiness_score": 0}
+        for team in self.model.get("teams", []):
+            graph.add_node(f"team:{team['id']}", type="team", **team)
 
-        threshold = cert.get("pass_threshold", 75)
-        practice = learner.get("practice_score_avg", 0)
-        hours = learner.get("hours_studied", 0)
-        recommended = cert.get("recommended_hours", 20)
-        rules = self._model.get("rules", {})
+        for learner in self.learners:
+            cert_id = learner.get("certification")
+            if cert_id:
+                graph.add_node(f"learner:{learner['learner_id']}", type="learner", **learner)
+                graph.add_edge(
+                    f"learner:{learner['learner_id']}",
+                    f"cert:{cert_id}",
+                    relation="pursuing",
+                )
+            team_id = learner.get("team_id")
+            if team_id:
+                graph.add_edge(f"learner:{learner['learner_id']}", f"team:{team_id}", relation="member_of")
 
-        gaps: list[str] = []
-        if practice < threshold:
-            gaps.append(f"Practice score {practice}% below {threshold}% threshold")
-        if hours < recommended:
-            gaps.append(f"Study hours {hours} below recommended {recommended}")
-        if practice < rules.get("min_practice_score_for_readiness", 75):
-            gaps.append("Increase weekly practice assessments")
+        return graph
 
-        hours_factor = min(hours / recommended, 1.0) * 40
-        practice_factor = min(practice / threshold, 1.0) * 60
-        readiness = round(hours_factor + practice_factor)
+    def get_certification_for_role(self, role: str) -> dict[str, Any]:
+        role_node = f"role:{role}"
+        if role_node not in self.graph:
+            for node, data in self.graph.nodes(data=True):
+                if data.get("type") == "role" and data.get("name", "").lower() == role.lower():
+                    role_node = node
+                    break
 
+        cert_ids = [
+            target.replace("cert:", "")
+            for _, target, edge_data in self.graph.out_edges(role_node, data=True)
+            if edge_data.get("relation") == "requires" and target.startswith("cert:")
+        ]
+
+        if not cert_ids:
+            return {"cert_id": None, "skills": [], "recommended_hours": 20, "prerequisites": []}
+
+        cert_id = cert_ids[0]
+        cert_data = self.graph.nodes.get(f"cert:{cert_id}", {})
         return {
-            "learner_id": learner_id,
-            "certification": learner["certification"],
-            "role": learner["role"],
-            "skill_gaps": gaps,
-            "readiness_score": readiness,
-            "exam_ready": readiness >= 75 and not gaps,
-            "required_skills": cert.get("skills", []),
-            "layer": "Fabric IQ",
+            "cert_id": cert_id,
+            "name": cert_data.get("name", cert_id),
+            "skills": cert_data.get("skills", []),
+            "recommended_hours": cert_data.get("recommended_hours", 20),
+            "prerequisites": cert_data.get("prerequisites", []),
         }
 
-    def team_readiness_summary(self, team: str | None = None) -> dict[str, Any]:
-        from .work_iq import WorkIQ
+    def get_skill_gaps(self, learner_id: str, target_cert: str) -> list[str]:
+        learner = self.learners_by_id.get(learner_id, {})
+        current_skills = set(learner.get("skills", []))
+        cert_node = f"cert:{target_cert}"
+        required_skills = {
+            self.graph.nodes[target].get("name", target.replace("skill:", ""))
+            for _, target, edge_data in self.graph.out_edges(cert_node, data=True)
+            if edge_data.get("relation") == "tests" and target.startswith("skill:")
+        }
+        return sorted(required_skills - current_skills)
 
-        work = WorkIQ()
-        learners = self._learners
-        if team:
-            team_learner_ids = {
-                s["learner_id"] for s in work.get_team_signals(team)
+    def get_team_readiness(self, team_id: str) -> dict[str, Any]:
+        team_learners = [l for l in self.learners if l.get("team_id") == team_id]
+        if not team_learners:
+            return {
+                "team_id": team_id,
+                "avg_practice_score": 0.0,
+                "pass_rate": 0.0,
+                "risk_areas": [],
+                "ready_count": 0,
+                "total_count": 0,
             }
-            learners = [l for l in learners if l["learner_id"] in team_learner_ids]
 
-        summaries = [self.compute_skill_gaps(l["learner_id"]) for l in learners]
-        ready = sum(1 for s in summaries if s.get("exam_ready"))
-        avg_readiness = round(
-            sum(s.get("readiness_score", 0) for s in summaries) / max(len(summaries), 1)
-        )
-        at_risk = [
-            s["learner_id"]
-            for s in summaries
-            if s.get("readiness_score", 0) < 60
+        scores = [l.get("practice_score_avg", 0) for l in team_learners]
+        avg_score = sum(scores) / len(scores)
+        pass_count = sum(1 for l in team_learners if l.get("exam_outcome") == "Pass")
+        ready_count = sum(1 for s in scores if s >= 75)
+
+        cert_scores: dict[str, list[float]] = {}
+        for learner in team_learners:
+            cert_scores.setdefault(learner.get("certification", "unknown"), []).append(
+                learner.get("practice_score_avg", 0)
+            )
+        risk_areas = [
+            cert for cert, vals in cert_scores.items() if sum(vals) / len(vals) < 70
         ]
 
         return {
-            "team": team or "ALL",
-            "learner_count": len(summaries),
-            "exam_ready_count": ready,
-            "average_readiness": avg_readiness,
-            "at_risk_learners": at_risk,
-            "pass_rate_historical": 0.68,
-            "layer": "Fabric IQ",
+            "team_id": team_id,
+            "avg_practice_score": round(avg_score, 1),
+            "pass_rate": round(pass_count / len(team_learners), 2),
+            "risk_areas": risk_areas,
+            "ready_count": ready_count,
+            "total_count": len(team_learners),
         }
 
-    def study_plan_semantics(self, learner_id: str) -> dict[str, Any]:
-        gaps = self.compute_skill_gaps(learner_id)
-        cert = self.get_certification(gaps.get("certification", ""))
-        learner = self.get_learner(learner_id)
-        if not cert or not learner:
-            return gaps
+    def get_study_hours_recommendation(self, cert_id: str, current_score: float) -> int:
+        cert_data = self.graph.nodes.get(f"cert:{cert_id}", {})
+        recommended = cert_data.get("recommended_hours", 20)
+        if current_score < 60:
+            hours = recommended * 1.5
+        elif current_score < 75:
+            hours = recommended
+        else:
+            hours = recommended * 0.7
+        return round(hours)
 
-        remaining_hours = max(
-            0,
-            cert.get("recommended_hours", 20) - learner.get("hours_studied", 0),
+    def health_check(self) -> dict[str, Any]:
+        cert_count = sum(
+            1 for _, d in self.graph.nodes(data=True) if d.get("type") == "certification"
         )
-        milestones = []
-        skills = cert.get("skills", [])
-        per_skill = max(1, remaining_hours // max(len(skills), 1))
-        for i, skill in enumerate(skills):
-            milestones.append({
-                "week": i + 1,
-                "skill": skill,
-                "hours": per_skill,
-                "checkpoint": f"Practice assessment on {skill}",
-            })
-
+        role_count = sum(1 for _, d in self.graph.nodes(data=True) if d.get("type") == "role")
         return {
-            **gaps,
-            "remaining_hours": remaining_hours,
-            "milestones": milestones,
-            "recommended_daily_hours": round(remaining_hours / max(len(milestones), 1) / 5, 1),
+            "nodes": self.graph.number_of_nodes(),
+            "edges": self.graph.number_of_edges(),
+            "certifications": cert_count,
+            "roles": role_count,
         }

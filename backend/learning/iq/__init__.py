@@ -1,7 +1,7 @@
-"""Microsoft IQ intelligence layers (Work IQ, Foundry IQ, Fabric IQ)."""
+"""Microsoft IQ intelligence layers."""
 
-from .work_iq import WorkIQ
-from .foundry_iq import FoundryIQ
-from .fabric_iq import FabricIQ
+from .fabric_iq import FabricIQClient
+from .foundry_iq import FoundryIQClient
+from .work_iq import WorkIQClient
 
-__all__ = ["WorkIQ", "FoundryIQ", "FabricIQ"]
+__all__ = ["FoundryIQClient", "FabricIQClient", "WorkIQClient"]

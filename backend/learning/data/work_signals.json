@@ -1,42 +1,54 @@
-[
-  {
-    "employee_id": "EMP-001",
-    "learner_id": "L-1001",
-    "team": "TEAM-A",
-    "meeting_hours_per_week": 22,
-    "focus_hours_per_week": 10,
-    "preferred_learning_slot": "Morning"
-  },
-  {
-    "employee_id": "EMP-002",
-    "learner_id": "L-1002",
-    "team": "TEAM-A",
-    "meeting_hours_per_week": 15,
-    "focus_hours_per_week": 18,
-    "preferred_learning_slot": "Afternoon"
-  },
-  {
-    "employee_id": "EMP-003",
-    "learner_id": "L-1003",
-    "team": "TEAM-B",
-    "meeting_hours_per_week": 18,
-    "focus_hours_per_week": 14,
-    "preferred_learning_slot": "Morning"
-  },
-  {
-    "employee_id": "EMP-004",
-    "learner_id": "L-1004",
-    "team": "TEAM-B",
-    "meeting_hours_per_week": 25,
-    "focus_hours_per_week": 8,
-    "preferred_learning_slot": "Evening"
-  },
-  {
-    "employee_id": "EMP-005",
-    "learner_id": "L-1005",
-    "team": "TEAM-C",
-    "meeting_hours_per_week": 12,
-    "focus_hours_per_week": 20,
-    "preferred_learning_slot": "Afternoon"
+{
+  "analysts": [
+    {
+      "employee_id": "EMP-001",
+      "learner_id": "L-1001",
+      "team": "TEAM-A",
+      "meeting_hours_per_week": 22,
+      "focus_hours_per_week": 10,
+      "preferred_learning_slot": "Morning"
+    },
+    {
+      "employee_id": "EMP-002",
+      "learner_id": "L-1002",
+      "team": "TEAM-A",
+      "meeting_hours_per_week": 15,
+      "focus_hours_per_week": 18,
+      "preferred_learning_slot": "Afternoon"
+    },
+    {
+      "employee_id": "EMP-003",
+      "learner_id": "L-1003",
+      "team": "TEAM-B",
+      "meeting_hours_per_week": 18,
+      "focus_hours_per_week": 14,
+      "preferred_learning_slot": "Morning"
+    },
+    {
+      "employee_id": "EMP-004",
+      "learner_id": "L-1004",
+      "team": "TEAM-B",
+      "meeting_hours_per_week": 25,
+      "focus_hours_per_week": 8,
+      "preferred_learning_slot": "Evening"
+    },
+    {
+      "employee_id": "EMP-005",
+      "learner_id": "L-1005",
+      "team": "TEAM-C",
+      "meeting_hours_per_week": 12,
+      "focus_hours_per_week": 20,
+      "preferred_learning_slot": "Afternoon"
+    }
+  ],
+  "team_capacity": {
+    "avg_focus_hours": 14,
+    "avg_meeting_hours": 18,
+    "current_load": "moderate",
+    "teams": {
+      "TEAM-A": {"learners": 2, "avg_practice_score": 74.5},
+      "TEAM-B": {"learners": 2, "avg_practice_score": 66},
+      "TEAM-C": {"learners": 1, "avg_practice_score": 79}
+    }
   }
-]
+}

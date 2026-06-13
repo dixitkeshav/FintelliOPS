@@ -23,7 +23,6 @@ from fetch_news.views import fetch_news  # update as per your actual import
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/fetch-news/", fetch_news, name="fetch_news"),  # this line must exist
-    path("", include("learning.urls")),
     path('', include('fetch_news.urls')),
   # Serve index.html at root
 ]

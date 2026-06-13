@@ -1,0 +1,160 @@
+{
+  "RELIANCE": [
+    {
+      "title": "Reliance Industries Q3 profit rises 12% on retail and Jio growth",
+      "summary": "RIL reported stronger EBITDA in digital services and retail segments. Management guided continued capex in green energy while maintaining dividend policy.",
+      "sentiment": "positive",
+      "source": "synthetic_financial_times",
+      "provider": "synthetic",
+      "url": "#syn-reliance-1"
+    },
+    {
+      "title": "Analysts upgrade Reliance citing refining margin recovery",
+      "summary": "Brokerages raised target prices after O2C margin expansion and stable crude spreads. Multiple firms cite Jio ARPU tailwinds.",
+      "sentiment": "positive",
+      "source": "synthetic_market_watch",
+      "provider": "synthetic",
+      "url": "#syn-reliance-2"
+    },
+    {
+      "title": "Reliance faces regulatory scrutiny on retail pricing practices",
+      "summary": "CCI review of competitive practices in FMCG retail could create near-term overhang. Legal experts expect prolonged proceedings.",
+      "sentiment": "negative",
+      "source": "synthetic_policy_digest",
+      "provider": "synthetic",
+      "url": "#syn-reliance-3"
+    },
+    {
+      "title": "RBI holds rates steady; bond yields edge lower",
+      "summary": "Policy unchanged at 6.5%. Governor noted balanced inflation outlook. Banking stocks mixed on NIM commentary.",
+      "sentiment": "neutral",
+      "source": "synthetic_macro_wire",
+      "provider": "synthetic",
+      "url": "#syn-macro-1"
+    },
+    {
+      "title": "FIIs turn net buyers in Indian equities for third straight session",
+      "summary": "Foreign portfolio investors bought $420M net. Large-cap energy and financials led inflows according to exchange data.",
+      "sentiment": "positive",
+      "source": "synthetic_flow_tracker",
+      "provider": "synthetic",
+      "url": "#syn-flow-1"
+    },
+    {
+      "title": "Crude oil volatility rises on Middle East supply concerns",
+      "summary": "Brent jumped 2.1% intraday. Refiners may see margin pressure if spike sustains beyond two weeks.",
+      "sentiment": "negative",
+      "source": "synthetic_commodity_brief",
+      "provider": "synthetic",
+      "url": "#syn-crude-1"
+    },
+    {
+      "title": "Reliance New Energy announces solar module partnership",
+      "summary": "Strategic tie-up supports 20GW manufacturing roadmap. Street views announcement as long-dated optionality.",
+      "sentiment": "positive",
+      "source": "synthetic_green_energy",
+      "provider": "synthetic",
+      "url": "#syn-reliance-4"
+    },
+    {
+      "title": "India CPI cools to 4.9% within RBI comfort band",
+      "summary": "Food inflation moderated. Core CPI stable. Macro desk sees lower probability of near-term rate hike.",
+      "sentiment": "positive",
+      "source": "synthetic_macro_wire",
+      "provider": "synthetic",
+      "url": "#syn-macro-2"
+    }
+  ],
+  "NIFTY": [
+    {
+      "title": "Nifty 50 closes at record high on broad-based rally",
+      "summary": "Index gained 0.8% with 38 advancers. Bank Nifty outperformed on strong credit growth data.",
+      "sentiment": "positive",
+      "source": "synthetic_index_close",
+      "provider": "synthetic",
+      "url": "#syn-nifty-1"
+    },
+    {
+      "title": "IT stocks drag Nifty as US client spending worries resurface",
+      "summary": "Nifty IT index fell 1.4%. Revenue guidance cuts from global peers weighed on sentiment.",
+      "sentiment": "negative",
+      "source": "synthetic_sector_scan",
+      "provider": "synthetic",
+      "url": "#syn-nifty-2"
+    },
+    {
+      "title": "RBI liquidity infusion supports short-end yields",
+      "summary": "System liquidity surplus at 1.8 lakh crore. Traders expect range-bound index action near highs.",
+      "sentiment": "neutral",
+      "source": "synthetic_macro_wire",
+      "provider": "synthetic",
+      "url": "#syn-nifty-3"
+    },
+    {
+      "title": "India manufacturing PMI expands for fifth month",
+      "summary": "New orders index improved. Export orders stable. Macro strategists maintain constructive GDP view.",
+      "sentiment": "positive",
+      "source": "synthetic_pmi_report",
+      "provider": "synthetic",
+      "url": "#syn-nifty-4"
+    },
+    {
+      "title": "Geopolitical tensions spark risk-off move in Asian markets",
+      "summary": "VIX India rose 6%. Defensive sectors outperformed. Hedging demand picked up in index options.",
+      "sentiment": "negative",
+      "source": "synthetic_risk_monitor",
+      "provider": "synthetic",
+      "url": "#syn-nifty-5"
+    },
+    {
+      "title": "Mutual funds add ₹8,200 crore to equities in January",
+      "summary": "SIP inflows remained robust. Domestic institutional support cited as cushion against FII volatility.",
+      "sentiment": "positive",
+      "source": "synthetic_flow_tracker",
+      "provider": "synthetic",
+      "url": "#syn-nifty-6"
+    }
+  ],
+  "DEFAULT": [
+    {
+      "title": "Indian equities open flat ahead of inflation print",
+      "summary": "Traders cautious before data release. Rupee stable. Bond market muted.",
+      "sentiment": "neutral",
+      "source": "synthetic_market_open",
+      "provider": "synthetic",
+      "url": "#syn-default-1"
+    },
+    {
+      "title": "RBI minutes signal data-dependent policy stance",
+      "summary": "Committee noted upside risks to food prices. Rate path remains pause-heavy.",
+      "sentiment": "neutral",
+      "source": "synthetic_macro_wire",
+      "provider": "synthetic",
+      "url": "#syn-default-2"
+    },
+    {
+      "title": "Banking sector NPAs at multi-year lows per RBI report",
+      "summary": "Asset quality improved across public and private lenders. Credit growth at 16% YoY.",
+      "sentiment": "positive",
+      "source": "synthetic_banking_review",
+      "provider": "synthetic",
+      "url": "#syn-default-3"
+    },
+    {
+      "title": "Global bond yields climb on resilient US payrolls",
+      "summary": "Emerging market flows under pressure. EM FX weakened against dollar.",
+      "sentiment": "negative",
+      "source": "synthetic_global_macro",
+      "provider": "synthetic",
+      "url": "#syn-default-4"
+    },
+    {
+      "title": "SEBI tightens disclosure norms for SME listings",
+      "summary": "New rules effective next quarter. Compliance costs may rise for smaller issuers.",
+      "sentiment": "negative",
+      "source": "synthetic_regulation",
+      "provider": "synthetic",
+      "url": "#syn-default-5"
+    }
+  ]
+}

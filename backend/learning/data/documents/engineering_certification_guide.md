@@ -31,3 +31,12 @@
 ## Assessment Readiness Criteria
 
 Learners with more than 20 study hours and more than 75% on practice scores show stronger certification outcomes. Review weak skill areas before scheduling the exam.
+
+## Azure Functions Exam Topics
+
+Azure Functions are a core AZ-204 topic. Key areas include:
+- HTTP triggers and bindings
+- Durable Functions patterns
+- Deployment slots and scaling
+- Integration with Azure Storage queues and blobs
+- Authentication and authorization for function apps

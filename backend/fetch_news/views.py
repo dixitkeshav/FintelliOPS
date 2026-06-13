@@ -404,24 +404,129 @@ def analyze_with_insights(request):
 
 
 # ——— Agentic AI: run multi-agent pipeline ———
+_last_iq_result: dict[str, Any] | None = None
+
+
+def _format_iq_agent(agent_result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "output": agent_result.get("output", ""),
+        "iq_layers_used": agent_result.get("iq_layers_used", []),
+        "citations": agent_result.get("citations", []),
+        "fabric_entities": agent_result.get("fabric_entities", []),
+        "work_signals": agent_result.get("work_signals", {}),
+        "completed": agent_result.get("completed", False),
+        "error": agent_result.get("error"),
+    }
+
+
+def _build_iq_response(context: dict[str, Any], orch: Any) -> dict[str, Any]:
+    return {
+        "pipeline_completed": context.get("pipeline_completed", False),
+        "query": context.get("query", ""),
+        "sector": context.get("sector", ""),
+        "analyst_id": context.get("analyst_id", ""),
+        "agents": {
+            name: _format_iq_agent(result)
+            for name, result in context.get("agents", {}).items()
+        },
+        "all_citations": context.get("all_citations", []),
+        "evaluation": context.get("evaluation", {}),
+        "recommendation": context.get("recommendation", ""),
+        "iq_health": orch.health_check(),
+        "pipeline_start": context.get("pipeline_start"),
+        "pipeline_end": context.get("pipeline_end"),
+    }
+
+
+@api_view(["GET"])
+def agents_health(request):
+    """Health check for FintelliOps IQ pipeline and LLM."""
+    from agents.orchestrator import AgentOrchestrator
+
+    orch = AgentOrchestrator()
+    return Response(orch.health_check())
+
+
+@api_view(["GET"])
+def agents_status(request):
+    """Status of last IQ pipeline run."""
+    global _last_iq_result
+    if _last_iq_result is None:
+        return Response({"status": "idle", "agents_completed": 0, "agents": {}})
+    agents = _last_iq_result.get("agents", {})
+    completed = sum(1 for a in agents.values() if a.get("completed"))
+    return Response(
+        {
+            "status": "completed" if _last_iq_result.get("pipeline_completed") else "running",
+            "agents_completed": completed,
+            "agents_total": len(agents),
+            "agents": {
+                name: {"completed": r.get("completed", False), "agent_name": name}
+                for name, r in agents.items()
+            },
+        }
+    )
+
+
 @api_view(['GET', 'POST'])
 def agents_run(request):
-    """Run News Scout, Macro, Technical, Market Reaction, Risk, Decision agents on current news."""
+    """Run FintelliOps IQ pipeline (query-based) or legacy ticker/news pipeline."""
     try:
+        req_data = request.data if request.method == "POST" else request.GET
+        query = (req_data.get("query") or "").strip()
+
+        if query:
+            sector = (req_data.get("sector") or "Technology").strip()
+            analyst_id = (req_data.get("analyst_id") or "ANL-001").strip()
+            from agents.orchestrator import AgentOrchestrator
+
+            global _last_iq_result
+            orch = AgentOrchestrator()
+            context = orch.run_fintelliops(query=query, sector=sector, analyst_id=analyst_id)
+            _last_iq_result = context
+            return Response(_build_iq_response(context, orch))
+
         import time as _time
 
         fetch_started = _time.perf_counter()
         news_source = "unknown"
         news_source_counts: dict[str, int] = {}
         articles: list[dict] = []
-        req_data = request.data if request.method == "POST" else request.GET
         ticker = (req_data.get("ticker") or "").strip()
+        use_synthetic = str(req_data.get("use_synthetic") or req_data.get("demo") or "").lower() in (
+            "1", "true", "yes",
+        )
         selected_indicators = req_data.get("selected_indicators") or []
         selected_patterns = req_data.get("selected_patterns") or []
         if isinstance(selected_indicators, str):
             selected_indicators = [s.strip() for s in selected_indicators.split(",") if s.strip()]
         if isinstance(selected_patterns, str):
             selected_patterns = [s.strip() for s in selected_patterns.split(",") if s.strip()]
+
+        if use_synthetic:
+            from agents.synthetic_data import aggregate_sentiment, load_synthetic_articles
+
+            articles = load_synthetic_articles(ticker or "RELIANCE")
+            news_source = "synthetic"
+            news_source_counts = {"synthetic": len(articles)}
+            agg = aggregate_sentiment(articles)
+            fetch_ms = (_time.perf_counter() - fetch_started) * 1000
+            from agents.orchestrator import AgentOrchestrator
+
+            orch = AgentOrchestrator()
+            result = orch.run(
+                articles,
+                ticker=ticker or "RELIANCE",
+                aggregate_sentiment=agg,
+                news_meta={
+                    "source": news_source,
+                    "fetch_ms": fetch_ms,
+                    "sources": news_source_counts,
+                },
+                selected_indicators=selected_indicators,
+                selected_patterns=selected_patterns,
+            )
+            return Response(result)
 
         if request.method == "POST" and request.data.get("articles"):
             articles = request.data["articles"]

@@ -1,89 +1,60 @@
-"""Assessment Agent — evaluates readiness with grounded, cited questions."""
+"""Assessment Agent — grounded practice questions with citations."""
 from __future__ import annotations
 
-import random
 from typing import Any
 
-from agents.base import BaseAgent
-from learning.iq.foundry_iq import FoundryIQ
-from learning.iq.fabric_iq import FabricIQ
-from learning.foundry_client import enrich_with_llm
+from learning.foundry_client import FoundryClient
+from learning.iq.fabric_iq import FabricIQClient
+from learning.iq.foundry_iq import FoundryIQClient
+from learning.iq.work_iq import WorkIQClient
 
 
-class AssessmentAgent(BaseAgent):
-    """Generates grounded assessments and scores readiness."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            name="AssessmentAgent",
-            role="Evaluate learner readiness with grounded, cited practice questions",
-        )
-        self.foundry_iq = FoundryIQ()
-        self.fabric_iq = FabricIQ()
+class AssessmentAgent:
+    def __init__(
+        self,
+        foundry_client: FoundryClient,
+        foundry_iq: FoundryIQClient,
+        fabric_iq: FabricIQClient,
+        work_iq: WorkIQClient,
+    ) -> None:
+        self.foundry_client = foundry_client
+        self.foundry_iq = foundry_iq
+        self.fabric_iq = fabric_iq
+        self.work_iq = work_iq
 
     def run(self, context: dict[str, Any]) -> dict[str, Any]:
-        learner_id = context.get("learner_id", "L-1001")
-        learner = self.fabric_iq.get_learner(learner_id) or {}
-        certification = learner.get("certification", "AZ-204")
-        cert_meta = self.fabric_iq.get_certification(certification) or {}
-        skills = cert_meta.get("skills", ["fundamentals"])
-        skill = random.choice(skills)
+        learner_id = context["learner_id"]
+        cert_id = context["certification"]
+        topics = context.get("topics", [])
+        skill_area = topics[0] if topics else cert_id
 
-        grounded_ctx = self.foundry_iq.generate_assessment_context(certification, skill)
-        gaps = self.fabric_iq.compute_skill_gaps(learner_id)
-
-        questions = []
-        for i, topic in enumerate(grounded_ctx.get("question_seed_topics", skills)[:3]):
-            citation = (
-                grounded_ctx["grounded_context"]["citations"][0]
-                if grounded_ctx["grounded_context"].get("citations")
-                else "[engineering_certification_guide.md]"
-            )
-            questions.append({
-                "id": f"Q-{i + 1}",
-                "skill": skill,
-                "question": f"Explain how {topic} applies to {certification} scenarios in a production Azure environment.",
-                "citation": citation,
-                "type": "short_answer",
-            })
-
-        practice_score = learner.get("practice_score_avg", 70)
-        threshold = cert_meta.get("pass_threshold", 75)
-        passed = practice_score >= threshold and gaps.get("exam_ready", False)
-
-        assessment = {
-            "learner_id": learner_id,
-            "certification": certification,
-            "questions": questions,
-            "practice_score_avg": practice_score,
-            "pass_threshold": threshold,
-            "passed": passed,
-            "readiness_score": gaps.get("readiness_score", 0),
-            "next_step": (
-                f"Recommend advancing to {(self.fabric_iq.get_role_mapping(learner.get('role', '')) or {}).get('secondary_certification') or 'next module'}"
-                if passed
-                else "Loop back to study preparation — focus on skill gaps"
-            ),
-        }
-
-        llm_summary = enrich_with_llm(
-            system_prompt=(
-                "You are an Assessment Agent. Summarise assessment results in 2 sentences. "
-                "Mention grounded questions, score vs threshold, and pass/fail outcome."
-            ),
-            user_prompt=f"Assessment: {assessment}. Gaps: {gaps.get('skill_gaps', [])}",
-            fallback=(
-                f"Generated {len(questions)} grounded questions for {certification}. "
-                f"Practice score {practice_score}% vs {threshold}% threshold — "
-                f"{'PASS' if passed else 'needs more preparation'}."
-            ),
+        citations = self.foundry_iq.retrieve(
+            f"{cert_id} practice questions exam topics {skill_area}"
         )
+        skill_gaps = self.fabric_iq.get_skill_gaps(learner_id, cert_id)
 
-        self._remember({"learner_id": learner_id, "assessment": assessment})
+        docs_text = "\n\n".join(
+            f"[{c['citation']}] {c['content'][:400]}" for c in citations
+        )
+        system_prompt = (
+            "You are an Assessment Agent. Generate practice questions grounded in documents."
+        )
+        user_prompt = (
+            f"Generate 3 practice questions for {cert_id}. "
+            f"Base questions ONLY on the following knowledge documents. "
+            f"For each question provide: question text, 4 options, correct answer, citation.\n"
+            f"Skill gaps to target: {', '.join(skill_gaps) or 'none'}\n\n"
+            f"Documents:\n{docs_text}"
+        )
+        output = self.foundry_client.chat(system_prompt, user_prompt)
+
         return {
-            "assessment": assessment,
-            "skill_gaps": gaps.get("skill_gaps", []),
-            "grounded_context": grounded_ctx,
-            "iq_layers": ["Foundry IQ", "Fabric IQ"],
-            "summary": llm_summary,
+            "agent_name": "AssessmentAgent",
+            "output": output,
+            "iq_layers_used": ["foundry_iq", "fabric_iq"],
+            "citations": citations,
+            "fabric_entities": skill_gaps,
+            "work_signals": {},
+            "completed": True,
+            "error": None,
         }

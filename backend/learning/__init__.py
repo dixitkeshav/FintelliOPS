@@ -1,1 +1,1 @@
-"""Enterprise learning certification multi-agent system for Microsoft Foundry Reasoning Agents challenge."""
+"""Enterprise learning certification agents and IQ layers."""

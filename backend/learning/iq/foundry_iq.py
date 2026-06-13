@@ -1,8 +1,12 @@
 """
-Foundry IQ — grounded knowledge retrieval layer (synthetic demo knowledge base).
+Foundry IQ — Grounded knowledge retrieval layer.
 
-In production, this connects to Azure AI Search via Microsoft Foundry IQ
-with permission-aware retrieval from SharePoint, Blob Storage, or OneLake.
+DEMO: Azure AI Search (free tier F1) over synthetic knowledge documents.
+PRODUCTION: Azure AI Search with semantic ranking, permission filters,
+and multi-source connectors (SharePoint, OneLake, Blob Storage).
+
+The agent contract is identical in both cases:
+retrieve(query) -> list of {content, citation, score}
 """
 from __future__ import annotations
 
@@ -11,86 +15,152 @@ import re
 from pathlib import Path
 from typing import Any
 
+import os
+
 logger = logging.getLogger(__name__)
 
+
+def _setting(name: str, default: str = "") -> str:
+    try:
+        from django.conf import settings as django_settings
+
+        return getattr(django_settings, name, default) or os.getenv(name, default)
+    except Exception:
+        return os.getenv(name, default)
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "documents"
+CHUNK_SIZE = 400
+CHUNK_OVERLAP = 50
 
 
-class FoundryIQ:
-    """Permission-aware grounded retrieval from approved synthetic knowledge sources."""
+class FoundryIQClient:
+    """Grounded knowledge retrieval via Azure AI Search with local fallback."""
 
     def __init__(self) -> None:
-        self._sources: dict[str, str] = {}
-        for path in DATA_DIR.glob("*.md"):
-            self._sources[path.stem] = path.read_text(encoding="utf-8")
+        endpoint = (_setting("AZURE_SEARCH_ENDPOINT") or "").strip()
+        key = _setting("AZURE_SEARCH_KEY")
+        index_name = _setting("AZURE_SEARCH_INDEX_NAME", "fintelliops-knowledge")
+        self.index_name = index_name
+        self.available = bool(endpoint and key)
+        self.fallback = not self.available
+        self.client = None
 
-    def list_sources(self) -> list[str]:
-        return list(self._sources.keys())
+        if self.available:
+            try:
+                from azure.core.credentials import AzureKeyCredential
+                from azure.search.documents import SearchClient
 
-    def retrieve(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
-        """Simple keyword retrieval with citations (demo Foundry IQ pattern)."""
-        query_terms = {t.lower() for t in re.findall(r"\w+", query) if len(t) > 2}
-        scored: list[tuple[float, str, str]] = []
+                self.client = SearchClient(
+                    endpoint=endpoint,
+                    index_name=index_name,
+                    credential=AzureKeyCredential(key),
+                )
+            except Exception as exc:
+                logger.warning("Azure Search init failed, using local fallback: %s", exc)
+                self.fallback = True
+                self.available = False
+        else:
+            logger.warning("Azure Search not configured — local fallback active")
 
-        for source_id, content in self._sources.items():
-            content_lower = content.lower()
-            hits = sum(1 for term in query_terms if term in content_lower)
-            if hits:
-                scored.append((hits / max(len(query_terms), 1), source_id, content))
+        self._local_docs = self._load_local_docs(str(DATA_DIR))
+
+    def retrieve(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+        if self.fallback or not self.available or self.client is None:
+            return self._local_retrieve(query, top_k)
+
+        try:
+            results = self.client.search(
+                search_text=query,
+                top=top_k,
+                select=["content", "source", "doc_type", "chunk_index"],
+            )
+            return [
+                {
+                    "content": r["content"],
+                    "citation": r["source"],
+                    "doc_type": r.get("doc_type", "knowledge"),
+                    "score": r.get("@search.score", 0.0),
+                    "chunk_index": r.get("chunk_index", 0),
+                }
+                for r in results
+            ]
+        except Exception as exc:
+            logger.warning("Azure Search query failed, using local fallback: %s", exc)
+            return self._local_retrieve(query, top_k)
+
+    def _local_retrieve(self, query: str, top_k: int) -> list[dict[str, Any]]:
+        query_words = set(re.findall(r"\w+", query.lower()))
+        if not query_words:
+            return self._local_docs[:top_k]
+
+        scored: list[tuple[float, dict[str, Any]]] = []
+        for doc in self._local_docs:
+            content_words = re.findall(r"\w+", doc["content"].lower())
+            if not content_words:
+                continue
+            overlap = len(query_words & set(content_words))
+            score = overlap / max(len(query_words), 1)
+            if overlap > 0:
+                scored.append((score, {**doc, "score": score}))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        results = []
-        for score, source_id, content in scored[:top_k]:
-            excerpt = self._best_excerpt(content, query_terms)
-            results.append({
-                "source_id": source_id,
-                "source_title": source_id.replace("_", " ").title(),
-                "relevance_score": round(score, 2),
-                "excerpt": excerpt,
-                "citation": f"[{source_id}.md]",
-            })
-        return results
+        if not scored:
+            return [{**d, "score": 0.1} for d in self._local_docs[:top_k]]
+        return [item[1] for item in scored[:top_k]]
 
-    def _best_excerpt(self, content: str, terms: set[str], window: int = 280) -> str:
-        lines = [ln.strip() for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
-        for line in lines:
-            if any(t in line.lower() for t in terms):
-                return line[:window]
-        return (lines[0] if lines else content)[:window]
+    def _load_local_docs(self, docs_path: str) -> list[dict[str, Any]]:
+        docs: list[dict[str, Any]] = []
+        path = Path(docs_path)
+        if not path.exists():
+            return docs
+        for md_file in sorted(path.glob("*.md")):
+            text = md_file.read_text(encoding="utf-8")
+            words = text.split()
+            if not words:
+                continue
+            step = CHUNK_SIZE - CHUNK_OVERLAP
+            chunk_index = 0
+            for i in range(0, len(words), step):
+                chunk_words = words[i : i + CHUNK_SIZE]
+                if not chunk_words:
+                    break
+                docs.append(
+                    {
+                        "content": " ".join(chunk_words),
+                        "source": md_file.name,
+                        "doc_type": self._infer_doc_type(md_file.name),
+                        "chunk_index": chunk_index,
+                    }
+                )
+                chunk_index += 1
+        return docs
 
-    def grounded_answer(self, query: str) -> dict[str, Any]:
-        chunks = self.retrieve(query, top_k=3)
-        if not chunks:
+    @staticmethod
+    def _infer_doc_type(filename: str) -> str:
+        lower = filename.lower()
+        if "guide" in lower:
+            return "guide"
+        if "report" in lower:
+            return "report"
+        if "insights" in lower:
+            return "insights"
+        return "knowledge"
+
+    def health_check(self) -> dict[str, Any]:
+        mode = "local_fallback" if self.fallback else "azure_search"
+        if self.fallback or self.client is None:
             return {
-                "answer": "No grounded content found in approved knowledge base.",
-                "citations": [],
-                "grounded": False,
+                "available": bool(self._local_docs),
+                "mode": mode,
+                "index": self.index_name,
             }
-        answer_parts = [c["excerpt"] for c in chunks]
-        return {
-            "answer": " ".join(answer_parts),
-            "citations": [c["citation"] for c in chunks],
-            "sources": chunks,
-            "grounded": True,
-            "layer": "Foundry IQ",
-        }
-
-    def generate_assessment_context(self, certification: str, skill: str) -> dict[str, Any]:
-        query = f"{certification} {skill} assessment readiness practice"
-        grounded = self.grounded_answer(query)
-        return {
-            "certification": certification,
-            "skill": skill,
-            "grounded_context": grounded,
-            "question_seed_topics": self._extract_topics(certification),
-        }
-
-    def _extract_topics(self, certification: str) -> list[str]:
-        chunks = self.retrieve(certification, top_k=2)
-        topics: list[str] = []
-        for c in chunks:
-            for line in c["excerpt"].split(","):
-                t = line.strip()
-                if t and len(t) < 60:
-                    topics.append(t)
-        return topics[:5] or [f"{certification} fundamentals", "Best practices", "Exam readiness"]
+        try:
+            list(self.client.search(search_text="certification", top=1))
+            return {"available": True, "mode": mode, "index": self.index_name}
+        except Exception as exc:
+            logger.warning("Foundry IQ health check failed: %s", exc)
+            return {
+                "available": bool(self._local_docs),
+                "mode": "local_fallback",
+                "index": self.index_name,
+            }
