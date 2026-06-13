@@ -2,12 +2,14 @@ import { create } from 'zustand';
 
 export interface AgentInsight {
   id: string;
-  agentName: 'News Scout' | 'Risk' | 'Macro' | 'Technical' | 'Market Reaction' | 'Decision';
+  agentName: string;
   signal: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
   confidence: number;
   explanation: string;
   timestamp: Date;
-  metrics?: Record<string, number | null>;
+  metrics?: Record<string, number | string | null | undefined>;
+  extras?: Record<string, unknown>;
+  called?: boolean;
 }
 
 interface AgentState {

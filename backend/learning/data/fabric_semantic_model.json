@@ -59,6 +59,11 @@
       "secondary_certification": null
     }
   ],
+  "teams": [
+    {"id": "TEAM-A", "name": "Platform Engineering"},
+    {"id": "TEAM-B", "name": "Data Platform"},
+    {"id": "TEAM-C", "name": "Security Operations"}
+  ],
   "rules": {
     "min_study_hours_for_readiness": 20,
     "min_practice_score_for_readiness": 75,

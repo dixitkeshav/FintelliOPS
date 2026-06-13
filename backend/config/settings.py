@@ -23,7 +23,6 @@ INSTALLED_APPS = [
     'evaluation',
     'cross_domain',
     'shock_predictor',
-    'learning',
     'django_celery_beat',
     'rest_framework',
     'corsheaders',
@@ -206,6 +205,18 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=15, minute=35),
     },
 }
+
+# Azure / Learning certification
+AZURE_AI_PROJECT_ENDPOINT = os.getenv('AZURE_AI_PROJECT_ENDPOINT', '')
+AZURE_AI_MODEL_DEPLOYMENT = os.getenv('AZURE_AI_MODEL_DEPLOYMENT', 'gpt-4o')
+AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT', '').strip()
+AZURE_OPENAI_API_KEY = os.getenv('AZURE_OPENAI_API_KEY', '')
+AZURE_SEARCH_ENDPOINT = os.getenv('AZURE_SEARCH_ENDPOINT', '').strip()
+AZURE_SEARCH_KEY = os.getenv('AZURE_SEARCH_KEY', '')
+AZURE_SEARCH_INDEX_NAME = os.getenv('AZURE_SEARCH_INDEX_NAME', 'fintelliops-knowledge')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+MCP_LEARN_ENABLED = os.getenv('MCP_LEARN_ENABLED', 'false').lower() == 'true'
+MCP_LEARN_SERVER_URL = os.getenv('MCP_LEARN_SERVER_URL', '')
 
 # Shock predictor integrations
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY', '')

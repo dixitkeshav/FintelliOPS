@@ -1,8 +1,9 @@
 """
-Agent orchestrator: runs all agents and optionally debate, returns unified output.
+Agent orchestrator: FintelliOps IQ pipeline + legacy market/ticker pipeline.
 """
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from .base import BaseAgent
@@ -44,9 +45,27 @@ PIPELINE_STEPS = [
 
 
 class AgentOrchestrator:
-    """Runs specialized agents and the Decision agent to produce a final view."""
+    """Runs FintelliOps IQ pipeline or legacy market/ticker pipeline."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        from intelligence.llm import LLMClient
+        from fintelliops_iq.fabric_iq import FabricIQClient
+        from fintelliops_iq.foundry_iq import FoundryIQClient
+        from fintelliops_iq.work_iq import WorkIQClient
+
+        self.llm = LLMClient()
+        self.foundry_iq = FoundryIQClient()
+        self.fabric_iq = FabricIQClient()
+        self.work_iq = WorkIQClient()
+
+        self.pipeline = [
+            NewsScoutAgent(self.llm, self.foundry_iq, self.fabric_iq, self.work_iq),
+            MacroContextAgent(self.llm, self.foundry_iq, self.fabric_iq, self.work_iq),
+            MarketReactionAgent(self.llm, self.foundry_iq, self.fabric_iq, self.work_iq),
+            RiskAgent(self.llm, self.foundry_iq, self.fabric_iq, self.work_iq),
+            DecisionAgent(self.llm, self.foundry_iq, self.fabric_iq, self.work_iq),
+        ]
+
         self.agents: list[BaseAgent] = [
             NewsScoutAgent(),
             MacroContextAgent(),
@@ -66,6 +85,69 @@ class AgentOrchestrator:
         self.risk_committee = RiskCommitteeAgent()
         self.debate = DebateFacilitatorAgent()
         self.shock = ShockAgent() if ShockAgent else None
+
+    def run_fintelliops(
+        self,
+        query: str,
+        sector: str = "Technology",
+        analyst_id: str = "ANL-001",
+    ) -> dict[str, Any]:
+        """Run 5-agent FintelliOps IQ pipeline (Foundry + Fabric + Work)."""
+        from fintelliops_iq.evaluation import evaluate_pipeline
+
+        context: dict[str, Any] = {
+            "query": query,
+            "sector": sector,
+            "analyst_id": analyst_id,
+            "pipeline_start": datetime.now(timezone.utc).isoformat(),
+            "agents": {},
+        }
+
+        for agent in self.pipeline:
+            agent_name = agent.__class__.__name__
+            try:
+                result = agent.run(context)
+                context["agents"][agent_name] = result
+                if result.get("output"):
+                    context[f"{agent_name}_output"] = result["output"]
+            except Exception as exc:
+                logger.error("Agent %s failed: %s", agent_name, exc, exc_info=True)
+                context["agents"][agent_name] = {
+                    "agent_name": agent_name,
+                    "output": "",
+                    "iq_layers_used": [],
+                    "citations": [],
+                    "fabric_entities": [],
+                    "work_signals": {},
+                    "completed": False,
+                    "error": str(exc),
+                }
+
+        all_citations: dict[str, dict] = {}
+        for agent_result in context["agents"].values():
+            for c in agent_result.get("citations", []):
+                key = c.get("citation", c.get("source", ""))
+                if key:
+                    all_citations[key] = c
+        context["all_citations"] = list(all_citations.values())
+
+        context["pipeline_end"] = datetime.now(timezone.utc).isoformat()
+        context["pipeline_completed"] = all(
+            a.get("completed") for a in context["agents"].values()
+        )
+        context["evaluation"] = evaluate_pipeline(context)
+        context["recommendation"] = context["agents"].get("DecisionAgent", {}).get("output", "")
+        return context
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "pipeline_agents": len(self.pipeline),
+            "llm": self.llm.health_check(),
+            "foundry_iq": self.foundry_iq.health_check(),
+            "fabric_iq": self.fabric_iq.health_check(),
+            "work_iq": self.work_iq.health_check(),
+        }
 
     def run(
         self,
@@ -172,24 +254,43 @@ class AgentOrchestrator:
         shock_out = {}
         if self.shock and build_shock_context_from_pipeline:
             t0 = time.perf_counter()
-            shock_ctx = {**ctx, **build_shock_context_from_pipeline(ctx)}
-            shock_out = self.shock.run(shock_ctx)
-            record(
-                "shock",
-                "Shock Predictor",
-                "completed",
-                shock_out.get("summary", ""),
-                (time.perf_counter() - t0) * 1000,
-            )
-            ctx["agent_outputs"]["Shock"] = shock_out
-            ctx["shock_probability"] = shock_out.get("shock_probability", 0)
+            try:
+                shock_ctx = {**ctx, **build_shock_context_from_pipeline(ctx)}
+                shock_out = self.shock.run(shock_ctx)
+                record(
+                    "shock",
+                    "Shock Predictor",
+                    "completed",
+                    shock_out.get("summary", ""),
+                    (time.perf_counter() - t0) * 1000,
+                )
+                ctx["agent_outputs"]["Shock"] = shock_out
+                ctx["shock_probability"] = shock_out.get("shock_probability", 0)
+            except Exception as e:
+                logger.warning("Shock agent skipped: %s", e)
+                record("shock", "Shock Predictor", "error", f"Skipped: {e}", (time.perf_counter() - t0) * 1000)
 
         t0 = time.perf_counter()
         decision_out = self.decision.run(ctx)
         record("decision", "Decision", "completed", decision_out.get("recommendation", ""), (time.perf_counter() - t0) * 1000)
         ctx["agent_outputs"]["Decision"] = decision_out
 
-        return {
+        agents_payload = self._build_agents_payload(
+            scout_out=scout_out,
+            macro_out=macro_out,
+            technical_out=technical_out,
+            reaction_out=reaction_out,
+            risk_out=risk_out,
+            bull_out=bull_out,
+            bear_out=bear_out,
+            committee_out=committee_out,
+            debate_out=debate_out,
+            shock_out=shock_out,
+            decision_out=decision_out,
+        )
+
+        result = {
+            "pipeline_completed": all(s.get("status") == "completed" for s in pipeline),
             "news_scout": scout_out,
             "macro_context": macro_out,
             "technical": technical_out,
@@ -201,6 +302,7 @@ class AgentOrchestrator:
             "debate": debate_out,
             "shock": shock_out,
             "decision": decision_out,
+            "agents": agents_payload,
             "recommendation": decision_out.get("recommendation", ""),
             "pipeline": pipeline,
             "article_count": len(articles),
@@ -209,4 +311,148 @@ class AgentOrchestrator:
             "ticker": ticker or None,
             "selected_indicators": selected_indicators or [],
             "selected_patterns": selected_patterns or [],
+            "data_notice": "Synthetic demo data" if meta.get("source") == "synthetic" else None,
         }
+
+        from .evaluation import evaluate_pipeline_result
+
+        result["evaluation"] = evaluate_pipeline_result(result)
+        return result
+
+    def _agent_card(
+        self,
+        agent_id: str,
+        name: str,
+        output: str,
+        signal: str,
+        metrics: dict[str, Any] | None = None,
+        extras: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        card: dict[str, Any] = {
+            "id": agent_id,
+            "name": name,
+            "called": True,
+            "status": "completed",
+            "output": output,
+            "signal": signal,
+        }
+        if metrics:
+            card["metrics"] = metrics
+        if extras:
+            card.update(extras)
+        return card
+
+    def _build_agents_payload(self, **outputs: dict[str, Any]) -> dict[str, Any]:
+        scout = outputs.get("scout_out") or {}
+        macro = outputs.get("macro_out") or {}
+        technical = outputs.get("technical_out") or {}
+        reaction = outputs.get("reaction_out") or {}
+        risk = outputs.get("risk_out") or {}
+        bull = outputs.get("bull_out") or {}
+        bear = outputs.get("bear_out") or {}
+        committee = outputs.get("committee_out") or {}
+        debate = outputs.get("debate_out") or {}
+        shock = outputs.get("shock_out") or {}
+        decision = outputs.get("decision_out") or {}
+
+        spike_dir = scout.get("spike_direction") or "neutral"
+        tech_sig = (technical.get("signal") or "neutral").lower()
+
+        payload = {
+            "news_scout": self._agent_card(
+                "news_scout",
+                "News Scout",
+                scout.get("summary", ""),
+                spike_dir if scout.get("spike_detected") else "neutral",
+                metrics={
+                    "positive_count": (scout.get("findings") or [{}])[0].get("positive_count"),
+                    "negative_count": (scout.get("findings") or [{}])[0].get("negative_count"),
+                    "spike_detected": scout.get("spike_detected"),
+                },
+            ),
+            "macro_context": self._agent_card(
+                "macro_context",
+                "Macro Context",
+                macro.get("summary", ""),
+                "bullish" if macro.get("macro_links") else "neutral",
+                extras={"macro_links": macro.get("macro_links", [])},
+            ),
+            "technical": self._agent_card(
+                "technical",
+                "Technical Analysis",
+                technical.get("summary", ""),
+                tech_sig,
+                metrics=technical.get("indicators"),
+                extras={"patterns": technical.get("candlestick_patterns", [])},
+            ),
+            "market_reaction": self._agent_card(
+                "market_reaction",
+                "Market Reaction",
+                reaction.get("summary", ""),
+                "neutral",
+                extras={"historical_reaction": reaction.get("historical_reaction")},
+            ),
+            "risk": self._agent_card(
+                "risk",
+                "Risk",
+                risk.get("summary", ""),
+                "bearish" if len(risk.get("risk_flags") or []) > 2 else "neutral",
+                extras={"risk_flags": risk.get("risk_flags", [])},
+            ),
+            "bull_research": self._agent_card(
+                "bull_research",
+                "Bull Research",
+                bull.get("summary", ""),
+                "bullish",
+                metrics=(bull.get("report") or {}).get("metadata"),
+                extras={"action": (bull.get("report") or {}).get("action")},
+            ),
+            "bear_research": self._agent_card(
+                "bear_research",
+                "Bear Research",
+                bear.get("summary", ""),
+                "bearish",
+                metrics=(bear.get("report") or {}).get("metadata"),
+                extras={"action": (bear.get("report") or {}).get("action")},
+            ),
+            "risk_committee": self._agent_card(
+                "risk_committee",
+                "Risk Committee",
+                committee.get("summary", ""),
+                "neutral",
+                extras={"constraints": committee.get("constraints", {})},
+            ),
+            "debate": self._agent_card(
+                "debate",
+                "Debate Facilitator",
+                debate.get("summary", ""),
+                (debate.get("stance") or "neutral").lower(),
+                extras={
+                    "action": debate.get("action"),
+                    "confidence_gap": debate.get("confidence_gap"),
+                },
+            ),
+            "decision": self._agent_card(
+                "decision",
+                "Decision",
+                decision.get("recommendation") or decision.get("summary", ""),
+                (decision.get("stance") or decision.get("action") or "neutral").lower(),
+                extras={
+                    "action": decision.get("action"),
+                    "risk_level": decision.get("risk_level"),
+                    "position_size_cap": decision.get("position_size_cap"),
+                },
+            ),
+        }
+
+        if shock:
+            payload["shock"] = self._agent_card(
+                "shock",
+                "Shock Predictor",
+                shock.get("summary", ""),
+                "bearish" if (shock.get("shock_probability") or 0) > 0.6 else "neutral",
+                metrics={"shock_probability": shock.get("shock_probability")},
+                extras={"suggested_hedge": shock.get("suggested_hedge")},
+            )
+
+        return payload

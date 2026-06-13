@@ -12,11 +12,8 @@ import { ThemeDock } from './ThemeDock';
 
 const NAV = [
   {
-    section: 'Reasoning Agents',
-    items: [
-      { href: '/dashboard/learning', icon: '🎓', label: 'Learning Certification' },
-      { href: '/dashboard/agents', icon: '🤖', label: 'Financial Agents (Legacy)' },
-    ],
+    section: 'Agent Pipeline',
+    items: [{ href: '/dashboard/agents', icon: '🤖', label: 'Agent Insights' }],
   },
 ];
 
@@ -42,8 +39,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="dash-layout">
         <aside className={`sidebar ${collapsed ? 'coll' : ''}`}>
           <div className="sb-head">
-            <div className="sb-logo-icon">E</div>
-            <div className="sb-brand">Enterprise Learning</div>
+            <div className="sb-logo-icon">F</div>
+            <div className="sb-brand">FintelliAI</div>
             <button type="button" className="sb-toggle" onClick={() => setCollapsed(!collapsed)} aria-label="Toggle sidebar">
               {collapsed ? '▶' : '◀'}
             </button>
@@ -70,7 +67,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <header className="topbar">
             <div className="tb-search">
               <span style={{ color: 'var(--text-4)', fontSize: 13 }}>🤖</span>
-              <input type="text" placeholder="Multi-agent enterprise learning certification system" readOnly />
+              <input type="text" placeholder="Multi-agent financial intelligence pipeline" readOnly />
             </div>
             <div className={mkt.cls}>
               <div className="ldot" />

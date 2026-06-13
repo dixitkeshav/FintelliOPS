@@ -1,62 +1,141 @@
 """
-LLM client: Groq (default) or OpenAI-compatible endpoints.
-Set GROQ_API_KEY for Groq. Set OPENAI_API_KEY to use OpenAI instead.
-Falls back to rule-based responses when no API key is set.
+LLM client: Azure OpenAI (primary) or Groq fallback.
+Backward-compatible helpers for sentiment, risk, and chat_completion.
 """
-import os
+from __future__ import annotations
+
 import logging
-from typing import Optional
+import os
+import time
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# Groq (default): https://api.groq.com/openai/v1 — use GROQ_API_KEY
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")  # or llama-3.1-8b-instant, mixtral-8x7b-32768
+GROQ_MODEL = "llama-3.3-70b-versatile"
+API_VERSION = "2024-08-01-preview"
 
-# OpenAI (optional override)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+_client_instance: "LLMClient | None" = None
 
 
-def _get_client_and_model():
-    """Return (OpenAI client, model name). Prefer Groq if GROQ_API_KEY set."""
-    try:
-        from openai import OpenAI
-    except ImportError:
-        return None, None
-    if GROQ_API_KEY:
-        return OpenAI(api_key=GROQ_API_KEY, base_url=GROQ_BASE_URL), GROQ_MODEL
-    if OPENAI_API_KEY:
-        return OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL), OPENAI_MODEL
-    return None, None
+class LLMClient:
+    """Azure OpenAI primary with Groq fallback on quota errors."""
 
+    def __init__(self) -> None:
+        azure_endpoint = (os.getenv("AZURE_OPENAI_ENDPOINT", "") or "").rstrip("/")
+        if azure_endpoint.endswith("/openai/v1"):
+            azure_endpoint = azure_endpoint[: -len("/openai/v1")]
+        azure_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        self.provider = "none"
+        self.client = None
+        self._groq_client = None
+        self.model = GROQ_MODEL
 
-def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 500) -> Optional[str]:
-    """Call Groq or OpenAI. Returns None on failure."""
-    client, model = _get_client_and_model()
-    if not client or not model:
-        logger.warning("No GROQ_API_KEY or OPENAI_API_KEY set; using fallback responses.")
-        return None
-    try:
-        resp = client.chat.completions.create(
+        if azure_endpoint and azure_key:
+            try:
+                import openai
+
+                self.client = openai.AzureOpenAI(
+                    azure_endpoint=azure_endpoint,
+                    api_key=azure_key,
+                    api_version=API_VERSION,
+                )
+                self.model = os.getenv("AZURE_AI_MODEL_DEPLOYMENT", "gpt-4.1-mini")
+                self.provider = "azure_openai"
+            except Exception as exc:
+                logger.warning("Azure OpenAI init failed: %s", exc)
+
+        if self.client is None and groq_key:
+            import openai
+
+            self.client = openai.OpenAI(api_key=groq_key, base_url=GROQ_BASE_URL)
+            self.model = GROQ_MODEL
+            self.provider = "groq"
+
+        if groq_key:
+            import openai
+
+            self._groq_client = openai.OpenAI(api_key=groq_key, base_url=GROQ_BASE_URL)
+
+        logger.info("LLM provider active: %s / %s", self.provider, self.model)
+
+    def chat(self, system_prompt: str, user_prompt: str, temperature: float = 0.3) -> str:
+        if self.client is None:
+            raise RuntimeError("No LLM provider configured (Azure OpenAI or Groq)")
+
+        try:
+            return self._call(self.client, self.model, system_prompt, user_prompt, temperature)
+        except Exception as exc:
+            if self._is_quota_error(exc) and self._groq_client and self.provider != "groq":
+                logger.warning("Azure quota error, retrying with Groq: %s", exc)
+                return self._call(
+                    self._groq_client, GROQ_MODEL, system_prompt, user_prompt, temperature
+                )
+            logger.error("LLM chat failed: %s", exc)
+            raise
+
+    def _call(
+        self,
+        client: Any,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+    ) -> str:
+        response = client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=max_tokens,
-            temperature=0.3,
+            temperature=temperature,
+            max_tokens=1500,
         )
-        return (resp.choices[0].message.content or "").strip()
-    except Exception as e:
-        logger.exception("LLM call failed: %s", e)
+        if response.usage:
+            logger.info("[%s] tokens: %s", self.provider, response.usage.total_tokens)
+        return (response.choices[0].message.content or "").strip()
+
+    def health_check(self) -> dict[str, Any]:
+        start = time.time()
+        try:
+            self.chat("You are a test agent.", "Reply with: OK", temperature=0)
+            return {
+                "provider": self.provider,
+                "model": self.model,
+                "status": "ok",
+                "latency_ms": int((time.time() - start) * 1000),
+            }
+        except Exception as exc:
+            return {
+                "provider": self.provider,
+                "model": self.model,
+                "status": "error",
+                "error": str(exc),
+            }
+
+    @staticmethod
+    def _is_quota_error(exc: Exception) -> bool:
+        msg = str(exc).lower()
+        return "429" in msg or "quota" in msg or "rate limit" in msg
+
+
+def get_llm_client() -> LLMClient:
+    global _client_instance
+    if _client_instance is None:
+        _client_instance = LLMClient()
+    return _client_instance
+
+
+def _safe_chat(system_prompt: str, user_prompt: str, max_tokens: int = 500) -> Optional[str]:
+    try:
+        client = get_llm_client()
+        return client.chat(system_prompt, user_prompt)[:max_tokens]
+    except Exception:
         return None
 
 
 def explain_sentiment(text: str, sentiment: str, probabilities: dict) -> str:
-    """Generate natural language explanation for why the sentiment is positive/negative/neutral."""
     system_prompt = (
         "You are a financial analyst. In 1-3 concise sentences, explain why the given "
         "financial news text has the stated sentiment. Mention specific drivers (e.g., "
@@ -66,38 +145,33 @@ def explain_sentiment(text: str, sentiment: str, probabilities: dict) -> str:
         f"Text:\n{text[:2000]}\n\nSentiment: {sentiment}. "
         f"Probabilities: {probabilities}. Explain why."
     )
-    result = _call_llm(system_prompt, user_prompt, max_tokens=200)
+    result = _safe_chat(system_prompt, user_prompt, max_tokens=200)
     if result:
         return result
-    drivers = {"positive": "optimistic language, growth/earnings strength, or favorable macro.",
-               "negative": "concerns over rates, margins, or macro headwinds.",
-               "neutral": "mixed or factual tone without strong directional bias."}
+    drivers = {
+        "positive": "optimistic language, growth/earnings strength, or favorable macro.",
+        "negative": "concerns over rates, margins, or macro headwinds.",
+        "neutral": "mixed or factual tone without strong directional bias.",
+    }
     return f"Sentiment is {sentiment} based on {drivers.get(sentiment, drivers['neutral'])}"
 
 
 def extract_risk_drivers(text: str) -> list:
-    """Extract key risk drivers from news text."""
     system_prompt = (
         "List 3-5 key risk drivers from this financial news, one per line. "
-        "Only output the list, no numbering or extra text. Examples: RBI policy uncertainty, "
-        "rising bond yields, inflation, earnings miss, regulatory risk."
+        "Only output the list, no numbering or extra text."
     )
-    user_prompt = f"News:\n{text[:2000]}"
-    result = _call_llm(system_prompt, user_prompt, max_tokens=150)
+    result = _safe_chat(system_prompt, f"News:\n{text[:2000]}", max_tokens=150)
     if result:
         return [line.strip() for line in result.split("\n") if line.strip()][:5]
     return ["Policy uncertainty", "Market volatility", "Macro headwinds"]
 
 
 def event_impact_summary(text: str, sentiment: str) -> str:
-    """Generate event impact summary with historical context."""
     system_prompt = (
-        "You are a quant analyst. In 2-3 sentences: (1) Summarize the main event in the news. "
-        "(2) State typical market impact (e.g., 'Historically similar narratives led to 2-4% "
-        "drawdowns in banking stocks'). Be specific and concise."
+        "You are a quant analyst. In 2-3 sentences summarize the main event and typical market impact."
     )
-    user_prompt = f"News:\n{text[:2000]}\n\nOverall sentiment: {sentiment}."
-    result = _call_llm(system_prompt, user_prompt, max_tokens=200)
+    result = _safe_chat(system_prompt, f"News:\n{text[:2000]}\n\nSentiment: {sentiment}.", max_tokens=200)
     if result:
         return result
     return (
@@ -107,14 +181,10 @@ def event_impact_summary(text: str, sentiment: str) -> str:
 
 
 def extract_events(text: str) -> list:
-    """Extract structured events: mergers, rate hikes, earnings, etc."""
     system_prompt = (
-        "From this financial news, extract events. One per line, format: TYPE: short description. "
-        "Types: RATE_DECISION, EARNINGS, MERGER_ACQUISITION, GUIDANCE, REGULATION, MACRO_DATA, "
-        "OTHER. Only output the list."
+        "From this financial news, extract events. One per line, format: TYPE: short description."
     )
-    user_prompt = f"News:\n{text[:2000]}"
-    result = _call_llm(system_prompt, user_prompt, max_tokens=200)
+    result = _safe_chat(system_prompt, f"News:\n{text[:2000]}", max_tokens=200)
     if result:
         events = []
         for line in result.split("\n"):
@@ -127,19 +197,17 @@ def extract_events(text: str) -> list:
 
 
 def aspect_sentiment(text: str, aspects: list) -> dict:
-    """Aspect-based sentiment: for each aspect, return sentiment."""
     if not aspects:
         aspects = ["earnings", "macro_economy", "sector_outlook", "management_guidance"]
     system_prompt = (
         "For each aspect, output one word: positive, negative, or neutral. "
-        "Output only a JSON object with aspect names as keys and sentiment as values. "
-        "Example: {\"earnings\": \"positive\", \"macro_economy\": \"negative\"}"
+        "Output only a JSON object with aspect names as keys."
     )
-    user_prompt = f"Aspects: {aspects}\n\nNews:\n{text[:1500]}"
-    result = _call_llm(system_prompt, user_prompt, max_tokens=150)
+    result = _safe_chat(system_prompt, f"Aspects: {aspects}\n\nNews:\n{text[:1500]}", max_tokens=150)
     if result:
         try:
             import json
+
             cleaned = result.strip()
             if cleaned.startswith("```"):
                 cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -150,21 +218,9 @@ def aspect_sentiment(text: str, aspects: list) -> dict:
 
 
 def chat_completion(user_content: str, system_content: str = "", max_tokens: int = 500) -> Optional[str]:
-    """Single call for any prompt (used by Decision agent and Symbol Deep-Dive)."""
-    client, model = _get_client_and_model()
-    if not client or not model:
-        return None
     try:
-        messages = [{"role": "user", "content": user_content}]
-        if system_content:
-            messages.insert(0, {"role": "system", "content": system_content})
-        resp = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=0.3,
-        )
-        return (resp.choices[0].message.content or "").strip()
-    except Exception as e:
-        logger.exception("chat_completion failed: %s", e)
+        client = get_llm_client()
+        return client.chat(system_content or "You are a helpful assistant.", user_content)[:max_tokens]
+    except Exception as exc:
+        logger.exception("chat_completion failed: %s", exc)
         return None

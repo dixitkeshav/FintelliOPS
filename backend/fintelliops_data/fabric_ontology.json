@@ -1,0 +1,40 @@
+{
+  "sectors": [
+    {
+      "id": "SECT-001",
+      "name": "Technology",
+      "sub_sectors": ["Semiconductors", "Cloud Infrastructure", "AI Software"],
+      "risk_beta": 1.4,
+      "rate_sensitivity": "high",
+      "companies": ["NVTK", "CLDX", "AISW"]
+    },
+    {
+      "id": "SECT-002",
+      "name": "Banking",
+      "sub_sectors": ["Retail Banking", "Investment Banking", "NBFCs"],
+      "risk_beta": 1.1,
+      "rate_sensitivity": "very_high",
+      "companies": ["BNKA", "BNKB"]
+    },
+    {
+      "id": "SECT-003",
+      "name": "Energy",
+      "sub_sectors": ["Renewables", "Oil and Gas", "Utilities"],
+      "risk_beta": 0.8,
+      "rate_sensitivity": "low",
+      "companies": ["ENRGA", "ENRGB"]
+    }
+  ],
+  "risk_thresholds": {
+    "low": { "max_score": 3.0, "action": "hold", "color": "green" },
+    "medium": { "max_score": 6.0, "action": "reduce_exposure", "color": "yellow" },
+    "high": { "max_score": 10.0, "action": "exit_or_hedge", "color": "red" }
+  },
+  "macro_correlations": [
+    { "indicator": "US_FED_RATE", "sector": "Banking", "direction": "positive", "strength": 0.75 },
+    { "indicator": "US_FED_RATE", "sector": "Technology", "direction": "negative", "strength": 0.65 },
+    { "indicator": "OIL_PRICE", "sector": "Energy", "direction": "positive", "strength": 0.8 },
+    { "indicator": "INR_USD", "sector": "Technology", "direction": "negative", "strength": 0.55 },
+    { "indicator": "INDIA_REPO", "sector": "Banking", "direction": "positive", "strength": 0.7 }
+  ]
+}

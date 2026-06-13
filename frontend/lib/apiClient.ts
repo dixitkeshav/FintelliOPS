@@ -76,67 +76,136 @@ export interface PipelineStep {
   duration_ms?: number;
 }
 
-export interface SyntheticLearner {
-  learner_id: string;
-  role: string;
-  certification: string;
-  practice_score_avg: number;
-  hours_studied: number;
-  exam_outcome: string;
+export interface LearningCitation {
+  citation: string;
+  content: string;
+  score: number;
+  doc_type?: string;
+  chunk_index?: number;
 }
 
-export interface LearningAgentOutput {
-  summary?: string;
-  iq_layers?: string[];
+export interface LearningAgentResult {
+  output: string;
+  iq_layers_used: string[];
+  citations: LearningCitation[];
+  fabric_entities: string[];
+  work_signals: Record<string, unknown>;
+  completed: boolean;
+  error: string | null;
+}
+
+export interface LearningEvaluation {
+  groundedness_score: number;
+  relevance_score: number;
+  completion_score: number;
+  overall_score: number;
+  safety_flags: string[];
+  passed: boolean;
 }
 
 export interface LearningRunResult {
   error?: string;
-  learner_id: string;
-  team: string;
-  topics: string[];
-  learning_path_curator: LearningAgentOutput & {
-    learning_path?: {
-      certification?: string;
-      role?: string;
-      citations?: string[];
-    };
+  pipeline_completed: boolean;
+  learner: {
+    learner_id: string;
+    role: string;
+    certification: string;
+    practice_score_avg: number;
+    hours_studied: number;
+    exam_outcome: string;
   };
-  study_plan_generator: LearningAgentOutput & {
-    study_plan?: {
-      daily_target_hours?: number;
-      remaining_hours?: number;
-      readiness_score?: number;
-    };
-  };
-  engagement_agent: LearningAgentOutput & {
-    engagement?: {
-      reminders?: Array<{ window: string; message: string }>;
-      capacity_risk?: string;
-    };
-  };
-  assessment_agent: LearningAgentOutput & {
-    assessment?: {
-      passed?: boolean;
-      practice_score_avg?: number;
-      pass_threshold?: number;
-      questions?: Array<{ id: string; question: string; citation: string }>;
-    };
-  };
-  manager_insights: LearningAgentOutput & {
-    manager_insights?: {
-      exam_ready_count?: number;
-      learner_count?: number;
-      average_readiness?: number;
-      at_risk_learners?: string[];
-    };
-  };
-  recommendation?: string;
-  exam_ready?: boolean;
-  pipeline?: PipelineStep[];
-  iq_layers?: { work_iq: boolean; foundry_iq: boolean; fabric_iq: boolean };
-  foundry?: { configured: boolean; mode: string };
-  data_notice?: string;
+  recommendation: string;
+  agents: Record<string, LearningAgentResult>;
+  all_citations: LearningCitation[];
+  evaluation: LearningEvaluation;
+  iq_health?: Record<string, unknown>;
+  pipeline_start?: string;
+  pipeline_end?: string;
+}
+
+export interface LearningHealth {
+  status: string;
+  agents: number;
+  iq_layers: string[];
+  llm_provider: string;
+  azure_search_mode: 'azure_search' | 'local_fallback';
+  mcp_learn_enabled: boolean;
+}
+
+export interface LearningStatus {
+  status: 'idle' | 'running' | 'completed';
+  agents_completed: number;
+  agents_total?: number;
+  agents: Record<string, { completed: boolean; agent_name: string }>;
+}
+
+export interface FintelliCitation {
+  citation: string;
+  content: string;
+  score: number;
+  doc_type?: string;
+  chunk_index?: number;
+}
+
+export interface FintelliAgentResult {
+  output: string;
+  iq_layers_used: string[];
+  citations: FintelliCitation[];
+  fabric_entities: string[];
+  work_signals: Record<string, unknown>;
+  completed: boolean;
+  error: string | null;
+}
+
+export interface FintelliEvaluation {
+  groundedness_score: number;
+  relevance_score: number;
+  completion_score: number;
+  overall_score: number;
+  safety_flags: string[];
+  passed: boolean;
+  agents_completed: string;
+}
+
+export interface FintelliRunResult {
+  error?: string;
+  pipeline_completed: boolean;
+  query: string;
+  sector: string;
+  analyst_id: string;
+  recommendation: string;
+  agents: Record<string, FintelliAgentResult>;
+  all_citations: FintelliCitation[];
+  evaluation: FintelliEvaluation;
+  iq_health?: Record<string, unknown>;
+  pipeline_start?: string;
+  pipeline_end?: string;
+}
+
+export interface AgentCardPayload {
+  id: string;
+  name: string;
+  called: boolean;
+  status: string;
+  output: string;
+  signal: string;
+  metrics?: Record<string, number | string | boolean | null | undefined>;
+  extras?: Record<string, unknown>;
+  macro_links?: string[];
+  risk_flags?: string[];
+  action?: string;
+}
+
+export interface PipelineEvaluation {
+  pipeline_completed?: boolean;
+  agents_called?: string[];
+  agents_missing?: string[];
+  coverage_score?: number;
+  output_score?: number;
+  overall_score?: number;
+  groundedness_score?: number;
+  safety_flags?: string[];
+  synthetic_data?: boolean;
 }
 
 export interface ShockScorePayload {
@@ -179,6 +248,7 @@ export interface QuantCatalog {
 
 export interface AgentsRunResult {
   error?: string;
+  pipeline_completed?: boolean;
   news_scout: { summary?: string; spike_detected?: boolean; spike_direction?: string };
   macro_context: { summary?: string; macro_links?: string[] };
   technical?: {
@@ -189,13 +259,19 @@ export interface AgentsRunResult {
   };
   market_reaction: { summary?: string; historical_reaction?: string };
   risk: { summary?: string; risk_flags?: string[] };
+  bull_research?: { summary?: string; report?: { action?: string } };
+  bear_research?: { summary?: string; report?: { action?: string } };
+  risk_committee?: { summary?: string; constraints?: Record<string, unknown> };
+  debate?: { summary?: string; action?: string; stance?: string };
   shock?: {
     shock_probability?: number;
     trigger_cause?: string;
     summary?: string;
     suggested_hedge?: string;
   };
-  decision: { summary?: string; recommendation?: string };
+  decision: { summary?: string; recommendation?: string; action?: string };
+  agents?: Record<string, AgentCardPayload>;
+  evaluation?: PipelineEvaluation;
   recommendation?: string;
   pipeline?: PipelineStep[];
   article_count?: number;
@@ -203,6 +279,7 @@ export interface AgentsRunResult {
   news_sources?: Record<string, number>;
   ticker?: string | null;
   selected_indicators?: string[];
+  data_notice?: string;
 }
 
 export type BacktestMode = 'equity_intraday' | 'equity_delivery' | 'options' | 'legacy';
@@ -538,69 +615,25 @@ export const apiClient = {
     }
   },
 
-  async getLearningHealth(): Promise<{
-    status: string;
-    challenge: string;
-    agents: string[];
-    iq_layers: string[];
-    synthetic_data_only: boolean;
-  } | null> {
-    try {
-      return await djangoJson('/api/learning/health/');
-    } catch {
-      return null;
-    }
-  },
-
-  async getLearningLearners(): Promise<SyntheticLearner[]> {
-    try {
-      const data = await djangoJson<{ learners: SyntheticLearner[] }>('/api/learning/learners/');
-      return data.learners || [];
-    } catch {
-      return [];
-    }
-  },
-
-  async getLearningTeams(): Promise<string[]> {
-    try {
-      const data = await djangoJson<{ teams: string[] }>('/api/learning/teams/');
-      return data.teams || [];
-    } catch {
-      return [];
-    }
-  },
-
-  async runLearningPipeline(opts: {
-    learner_id: string;
-    team?: string;
-    topics?: string[];
-    certification?: string;
-  }): Promise<LearningRunResult | null> {
-    try {
-      return await djangoJson<LearningRunResult>('/api/learning/run/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(opts),
-      });
-    } catch (error) {
-      console.error('Error running learning pipeline:', error);
-      return null;
-    }
-  },
-
   async getAgentInsights(
     ticker?: string,
-    options?: { selectedIndicators?: string[]; selectedPatterns?: string[] }
+    options?: {
+      selectedIndicators?: string[];
+      selectedPatterns?: string[];
+      useSynthetic?: boolean;
+    }
   ): Promise<AgentsRunResult | null> {
     try {
       const body: {
         ticker?: string;
         selected_indicators?: string[];
         selected_patterns?: string[];
+        use_synthetic?: boolean;
       } = {};
       if (ticker) body.ticker = ticker;
       if (options?.selectedIndicators?.length) body.selected_indicators = options.selectedIndicators;
       if (options?.selectedPatterns?.length) body.selected_patterns = options.selectedPatterns;
+      if (options?.useSynthetic) body.use_synthetic = true;
       return await djangoJson<AgentsRunResult>('/api/agents/run/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -610,6 +643,26 @@ export const apiClient = {
       console.error('Error fetching agent insights:', error);
       return null;
     }
+  },
+
+  async runFintelliPipeline(
+    query: string,
+    sector: string,
+    analystId: string
+  ): Promise<FintelliRunResult> {
+    return djangoJson<FintelliRunResult>('/api/agents/run/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, sector, analyst_id: analystId }),
+    });
+  },
+
+  async getAgentsHealth(): Promise<Record<string, unknown>> {
+    return djangoJson<Record<string, unknown>>('/api/agents/health/');
+  },
+
+  async getAgentsStatus(): Promise<Record<string, unknown>> {
+    return djangoJson<Record<string, unknown>>('/api/agents/status/');
   },
 
   /** Fetch sentiment distribution and trend from /api/chart-data/ */
@@ -793,5 +846,29 @@ export const apiClient = {
       throw new ApiError(data.error || 'Backtest failed', response.status, data);
     }
     return data;
+  },
+
+  async runLearningPipeline(
+    learnerId: string,
+    teamId: string,
+    topics: string[]
+  ): Promise<LearningRunResult> {
+    return djangoJson<LearningRunResult>('/api/learning/run/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ learner_id: learnerId, team_id: teamId, topics }),
+    });
+  },
+
+  async getLearningHealth(): Promise<LearningHealth> {
+    return djangoJson<LearningHealth>('/api/learning/health/');
+  },
+
+  async getLearningStatus(): Promise<LearningStatus> {
+    return djangoJson<LearningStatus>('/api/learning/status/');
+  },
+
+  async getLearningTopics(): Promise<{ topics: string[] }> {
+    return djangoJson<{ topics: string[] }>('/api/learning/topics/');
   },
 };

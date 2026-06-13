@@ -1,21 +1,8 @@
-# Enterprise Learning Certification — Multi-Agent Showcase
+# FintelliAI — Multi-Agent Financial Intelligence
 
-**Microsoft Foundry Reasoning Agents Challenge** submission: a multi-agent enterprise learning system that helps organisations manage internal team certification programmes.
+Multi-agent pipeline for financial news analysis, sentiment, technical signals, debate-driven recommendations, and shock prediction. Django backend + Next.js dashboard.
 
-> **Synthetic data only** — fabricated learners (L-1001), employees (EMP-001), and demo documents. No real PII.
-
-## What's included
-
-- **5 specialised agents** orchestrated end-to-end: Learning Path Curator, Study Plan Generator, Engagement, Assessment, Manager Insights
-- **3 Microsoft IQ layers**: Work IQ, Foundry IQ, Fabric IQ
-- **Synthetic datasets** and approved knowledge documents for grounded retrieval
-- **Microsoft Foundry SDK** integration with local LLM fallback
-- **Optional MCP** hook for Microsoft Learn documentation
-- **Hosted Agent** deployment pattern (`deploy/hosted-agent/`)
-- **Next.js dashboard** with pipeline visualization and agent result cards
-- **Legacy financial agents** still available at `/dashboard/agents`
-
-See [CHALLENGE_README.md](./CHALLENGE_README.md) for full challenge alignment and evaluation mapping.
+> **Synthetic demo data** available for offline testing — no live API keys required.
 
 ## Quick start
 
@@ -23,10 +10,9 @@ See [CHALLENGE_README.md](./CHALLENGE_README.md) for full challenge alignment an
 
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r ../requirements.txt
-cp ../.env.example .env     # optional: GROQ_API_KEY or AZURE_AI_PROJECT_ENDPOINT
+cp ../.env.example .env    # optional: GROQ_API_KEY, NEWSAPI_KEY
 python manage.py migrate
 python manage.py runserver
 ```
@@ -40,49 +26,95 @@ cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) → **Learning Certification** dashboard.
+Open [http://localhost:3000/dashboard/agents](http://localhost:3000/dashboard/agents)
 
-### Run the pipeline
+## Agent pipeline
 
-1. Select a synthetic learner (e.g. `L-1001 — Cloud Engineer (AZ-204)`)
-2. Choose team and study topics
-3. Click **Run Learning Pipeline**
-4. View IQ-grounded agent outputs and manager insights
+| Step | Agent | Role |
+|------|-------|------|
+| 1 | News Scout | Sentiment spike detection |
+| 2 | Macro Context | Rates, CPI, GDP linkage |
+| 3 | Technical | RSI, MACD, moving averages |
+| 4 | Market Reaction | Historical reaction patterns |
+| 5 | Risk | Concentration and downside flags |
+| 6 | Bull / Bear Research | Structured bull vs bear theses |
+| 7 | Risk Committee | Position constraints |
+| 8 | Debate Facilitator | Resolves bull vs bear stance |
+| 9 | Shock Predictor | Nifty shock probability (optional) |
+| 10 | Decision | Final BUY / HOLD / SELL synthesis |
 
-## API endpoints
+## Synthetic testing (no API keys)
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/learning/run/` | Run full certification multi-agent workflow |
-| `GET /api/learning/health/` | Health check and IQ layer status |
-| `GET /api/learning/learners/` | List synthetic learners |
-| `GET /api/learning/iq/` | Sample IQ layer retrieval |
+### CLI
+
+```bash
+cd backend
+PYTHONPATH=. python3 -m agents.run_synthetic_test RELIANCE
+PYTHONPATH=. python3 -m agents.run_synthetic_test NIFTY
+```
+
+### API
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/agents/run/ \
+  -H "Content-Type: application/json" \
+  -d '{"ticker":"RELIANCE","use_synthetic":true}'
+```
+
+### UI
+
+Click **Run Synthetic Demo** on the Agent Insights page.
+
+## API response structure
+
+Each run returns per-agent cards, pipeline steps, and evaluation scores:
+
+```json
+{
+  "pipeline_completed": true,
+  "agents": {
+    "news_scout": { "called": true, "output": "...", "signal": "positive", "metrics": {} },
+    "decision": { "called": true, "output": "HOLD ...", "signal": "neutral", "action": "HOLD" }
+  },
+  "evaluation": {
+    "agents_called": ["news_scout", "macro_context", "..."],
+    "coverage_score": 100,
+    "overall_score": 95.2
+  },
+  "recommendation": "HOLD with 50% max size..."
+}
+```
+
+## Synthetic data
+
+Located in `backend/agents/data/synthetic_articles.json`:
+
+- **RELIANCE** — 8 fabricated headlines (mixed sentiment)
+- **NIFTY** — 6 index-level headlines
+- **DEFAULT** — 5 general market headlines
+
+All identifiers and content are fictional demo data.
 
 ## Environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `AZURE_AI_PROJECT_ENDPOINT` | Microsoft Foundry project (optional) |
-| `AZURE_AI_MODEL_DEPLOYMENT` | Model deployment name (default: gpt-4o) |
-| `GROQ_API_KEY` or `OPENAI_API_KEY` | Local LLM fallback |
-| `MCP_LEARN_ENABLED` | Enable Microsoft Learn MCP (optional) |
+| `GROQ_API_KEY` | LLM synthesis (free tier friendly) |
+| `NEWSAPI_KEY` | Live news ingestion |
+| `AZURE_OPENAI_ENDPOINT` | Optional Azure OpenAI |
+| `AZURE_OPENAI_API_KEY` | Optional Azure OpenAI key |
 
 ## Project structure
 
 ```
 FNSA-Agent-Showcase/
-├── backend/learning/          # Challenge implementation
-│   ├── agents/                # 5 agents + orchestrator
-│   ├── iq/                    # Work IQ, Foundry IQ, Fabric IQ
-│   ├── data/                  # Synthetic JSON + documents
-│   └── foundry_client.py      # Azure Foundry integration
-├── frontend/app/dashboard/learning/   # Certification UI
-├── deploy/hosted-agent/       # Container deployment for Foundry
-└── CHALLENGE_README.md        # Submission documentation
+├── backend/agents/           # Multi-agent orchestrator + synthetic data
+├── backend/fetch_news/       # News APIs + /api/agents/run/
+├── backend/quant/            # Technical indicators
+├── backend/shock_predictor/  # Shock agent
+└── frontend/app/dashboard/agents/  # Agent Insights UI
 ```
 
-## Security
+## Author
 
-- Never commit `.env` files or credentials
-- Use synthetic data only in demos and evaluations
-- Manager insights use aggregated metrics — no sensitive personal data exposed
+**Keshav Dixit** — B.Tech Computer and Communication Engineering, Manipal University Jaipur
