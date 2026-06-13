@@ -12,7 +12,6 @@ __pycache__/
 backend/.env
 frontend/.env
 frontend/.env.local
-DATA_FETCHING/.env
 .env.production
 
 # Database (local SQLite only)

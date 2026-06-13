@@ -2,8 +2,6 @@
 import os
 import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../DATA_FETCHING")))
-
 # Ensure Django uses the correct virtual environment
 VENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".venv"))
 if VENV_PATH not in sys.path:

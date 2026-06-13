@@ -132,5 +132,3 @@ cd backend && pip install -r ../requirements.txt && python manage.py runserver
 # Frontend
 cd frontend && npm install && npm run dev
 ```
-
-For local shared Postgres: `docker compose -f docker-compose.edge.yml up -d` and set `DATABASE_URL` in both env files.
