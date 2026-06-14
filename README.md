@@ -267,4 +267,5 @@ FNSA-Agent-Showcase/
 
 ## Author
 
-**Keshav Dixit** — B.Tech Computer and Communication Engineering, Manipal University Jaipur
+**Keshav Dixit** — B.Tech Computer and Communication Engineering, 
+**Keshav Rai** - B.Tech Internet Of Things
